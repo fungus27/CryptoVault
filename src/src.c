@@ -12,11 +12,10 @@
 
 #define _DEBUG
 
-
 #ifdef _DEBUG
-#define handleErrors() printErrors()
+#define handle_errors() print_errors()
 #else
-#define handleErrors()
+#define handle_errors()
 #endif
 
 #define PATH_LIMIT 260
@@ -26,40 +25,42 @@
 #define N_ITERATIONS_CHILD 10000
 
 
-typedef unsigned char BYTE;
+
+typedef unsigned char byte;
 
 typedef struct{
     unsigned int login_size;
     unsigned short password_block_count;
-    BYTE* login;
-    BYTE* password;
-    BYTE password_iv[16];
-} LoginPair;
+    byte* login;
+    byte* password;
+    byte password_iv[16];
+} login_pair;
 
 typedef struct {
     char path[PATH_LIMIT];
     unsigned int pair_count;
-    LoginPair* loginPairs;
-    BYTE key_token[32];
-} LoginData;
+    login_pair* login_pairs;
+    byte key_token[32];
+} login_data;
 
 typedef struct {
-    BYTE key[32];
-    BYTE m_key[32];
-} Key;
+    byte key[32];
+    byte m_key[32];
+} master_key;
 
 typedef struct {
     WINDOW* border;
     WINDOW* prompt;
-} PromptWindow;
+} prompt_window;
 
-static BYTE salt1[16] = {27, 130, 103, 40, 138, 19, 43, 13, 2, 228, 45, 26, 242, 232, 131, 247};
-static BYTE salt2[16] = {50, 156, 173, 242, 26, 90, 239, 246, 139, 216, 70, 53, 254, 1, 198, 43};
-static BYTE salt3[16] = {38, 201, 151, 231, 208, 219, 244, 17, 111, 186, 53, 122, 21, 239, 173, 155};
 
-int SaveData(LoginData* data, Key* key);
-unsigned int Menu(int height, int width, int y, int x, char** options, unsigned int options_count, unsigned int start_option);
-unsigned int YesOrNo(WINDOW* w_prompt, char* prompt);
+
+static byte salt1[16] = {27 , 130, 103, 40, 138, 19, 43, 13, 2, 228, 45, 26, 242, 232, 131, 247};
+static byte salt2[16] = {50 , 156, 173, 242, 26, 90, 239, 246, 139, 216, 70, 53, 254, 1, 198, 43};
+static byte salt3[16] = {38, 201, 151, 231, 208, 219, 244, 17, 111, 186, 53, 122, 21, 239, 173, 155};
+
+
+
 unsigned int max(unsigned int a, unsigned int b){
     return a > b ? a : b;
 }
@@ -68,68 +69,52 @@ unsigned int min(unsigned int a, unsigned int b){
     return a < b ? a : b;
 }
 
-
-void printErrors(void)
+void print_errors(void)
 {
     ERR_print_errors_fp(stderr);
     abort();
 }
 
-void Initialize(){
-    
+void initialize(){
     ERR_load_crypto_strings();
-    
-    
     OpenSSL_add_all_algorithms();
-    
-    
-    //OPENSSL_config(NULL);
 }
 
-void Finalize(){
-    
+void finalize(){
     EVP_cleanup();
-    
-    
     CRYPTO_cleanup_all_ex_data();
-    
-    
     ERR_free_strings();
 }
 
-unsigned int encrypt(BYTE *plaintext, unsigned int plaintext_len, BYTE *key, BYTE *iv, BYTE *ciphertext)
+
+
+unsigned int encrypt(byte *plaintext, unsigned int plaintext_len, byte *key, byte *iv, byte *ciphertext)
 {
     EVP_CIPHER_CTX *ctx;
-    
     unsigned int len;
-    
     unsigned int ciphertext_len;
     
-    
     if(!(ctx = EVP_CIPHER_CTX_new()))
-        handleErrors();
+        handle_errors();
     
     if(1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key, iv))
-        handleErrors();
-    
+        handle_errors();
     
     if(1 != EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len))
-        handleErrors();
+        handle_errors();
     
     ciphertext_len = len;
     
-    
     if(1 != EVP_EncryptFinal_ex(ctx, ciphertext + len, &len))
-        handleErrors();
+        handle_errors();
     ciphertext_len += len;
-    
     
     EVP_CIPHER_CTX_free(ctx);
     
     return ciphertext_len;
 }
 
-unsigned int decrypt(BYTE *ciphertext, unsigned int ciphertext_len, BYTE *key,BYTE *iv, BYTE *plaintext)
+unsigned int decrypt(byte *ciphertext, unsigned int ciphertext_len, byte *key,byte *iv, byte *plaintext)
 {
     EVP_CIPHER_CTX *ctx;
     
@@ -139,29 +124,26 @@ unsigned int decrypt(BYTE *ciphertext, unsigned int ciphertext_len, BYTE *key,BY
     
     /* Create and initialise the context */
     if(!(ctx = EVP_CIPHER_CTX_new()))
-        handleErrors();
-    
+        handle_errors();
     
     if(1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key, iv))
-        handleErrors();
-    
+        handle_errors();
     
     if(1 != EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len))
-        handleErrors();
+        handle_errors();
     plaintext_len = len;
     
     
     if(1 != EVP_DecryptFinal_ex(ctx, plaintext + len, &len))
-        handleErrors();
+        handle_errors();
     plaintext_len += len;
-    
     
     EVP_CIPHER_CTX_free(ctx);
     
     return plaintext_len;
 }
 
-int create_hmac(BYTE *msg, unsigned int message_lenght, BYTE *val, EVP_PKEY *pkey)
+int create_hmac(byte *msg, unsigned int message_lenght, byte *val, EVP_PKEY *pkey)
 {
     /* Returned to caller */
     int result = 0;
@@ -169,77 +151,67 @@ int create_hmac(BYTE *msg, unsigned int message_lenght, BYTE *val, EVP_PKEY *pke
     size_t req = 0;
     int rc;
     
-    
-    
-    
-    
     ctx = EVP_MD_CTX_new();
     if (ctx == NULL) {
-        handleErrors();
+        handle_errors();
     }
     
     rc = EVP_DigestSignInit(ctx, NULL, EVP_sha256(), NULL, pkey);
     if (rc != 1) {
-        handleErrors();
+        handle_errors();
     }
     
     rc = EVP_DigestSignUpdate(ctx, msg, message_lenght);
     if (rc != 1) {
-        handleErrors();
+        handle_errors();
     }
     
     rc = EVP_DigestSignFinal(ctx, NULL, &req);
     if (rc != 1) {
-        handleErrors();
+        handle_errors();
     }
-    
-    
     
     size_t vlen = 0;
     rc = EVP_DigestSignFinal(ctx, val, &vlen);
     if (rc != 1) {
-        handleErrors();
+        handle_errors();
     }
     
     result = 1;
     
-    
     EVP_MD_CTX_free(ctx);
-    
     
     return result;
 }
 
-int verify_hmac(BYTE *msg, unsigned int message_lenght, BYTE *val, EVP_PKEY *pkey)
+int verify_hmac(byte *msg, unsigned int message_lenght, byte *val, EVP_PKEY *pkey)
 {
     /* Returned to caller */
     int result = 0;
     EVP_MD_CTX* ctx = NULL;
-    BYTE buff[32];
+    byte buff[32];
     size_t size;
     int rc;
     
-    
-    
     ctx = EVP_MD_CTX_new();
     if (ctx == NULL) {
-        handleErrors();
+        handle_errors();
     }
     
     rc = EVP_DigestSignInit(ctx, NULL, EVP_sha256(), NULL, pkey);
     if (rc != 1) {
-        handleErrors();
+        handle_errors();
     }
     
     rc = EVP_DigestSignUpdate(ctx, msg, message_lenght);
     if (rc != 1) {
-        handleErrors();
+        handle_errors();
     }
     
     size = sizeof(buff);
     rc = EVP_DigestSignFinal(ctx, buff, &size);
     if (rc != 1) {
-        handleErrors();
+        handle_errors();
     }
     
     result = (32 == size) && (CRYPTO_memcmp(val, buff, size) == 0);
@@ -250,78 +222,88 @@ int verify_hmac(BYTE *msg, unsigned int message_lenght, BYTE *val, EVP_PKEY *pke
 
 
 
-int RandomIV(BYTE* iv){
+int random_iv(byte* iv){
     return RAND_bytes(iv, 16);
 }
 
-void derive_key(BYTE* password, unsigned int password_lenght, BYTE* salt, BYTE* key, unsigned int iter){
+void derive_key(byte* password, unsigned int password_lenght, byte* salt, byte* key, unsigned int iter){
     PKCS5_PBKDF2_HMAC(password, password_lenght, salt, 16, iter, EVP_sha256(), 32, key);
 }
 
-void hash_sha256(BYTE* message, unsigned int message_lenght, BYTE* digest){
+void hash_sha256(byte* message, unsigned int message_lenght, byte* digest){
     EVP_MD_CTX *mdctx;
     
 	if((mdctx = EVP_MD_CTX_new()) == NULL)
-		handleErrors();
+		handle_errors();
     
 	if(1 != EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL))
-		handleErrors();
+		handle_errors();
     
 	if(1 != EVP_DigestUpdate(mdctx, message, message_lenght))
-		handleErrors();
-    
+		handle_errors();
     
 	if(1 != EVP_DigestFinal_ex(mdctx, digest, NULL))
-		handleErrors();
+		handle_errors();
     
 	EVP_MD_CTX_free(mdctx);
 }
 
-void generate_token(Key* key, BYTE* token){
-    BYTE concat[64];
+void generate_token(master_key* key, byte* token){
+    byte concat[64];
     
     memcpy(concat, key->key, 32);
     memcpy(concat + 32, key->m_key, 32);
     
     hash_sha256(concat, 64, token);
-    
 }
 
-// NOTE(fungus): return 0 if verified
-int verify_key(Key* key, BYTE* token){
-    BYTE digest[32];
+// return 0 if verified
+int verify_key(master_key* key, byte* token){
+    byte digest[32];
     
     generate_token(key, digest);
     
     return CRYPTO_memcmp(digest, token, 32);
-    
 }
 
 
 
+void initialize_data(login_data* data){
+    data->pair_count = 0;
+    data->login_pairs = NULL;
+    memset(data->key_token, 0, 32);
+    memset(data->path, 0, PATH_LIMIT);
+}
+
+void destroy_data(login_data* data){
+    for (unsigned int i = 0; i < data->pair_count; i++)
+    {
+        free(data->login_pairs[i].login);
+        free(data->login_pairs[i].password);
+    }
+    if(data->login_pairs)
+        free(data->login_pairs);
+}
+
 // returns false if decryption fails
-int LoadData(LoginData* data, Key* key){
+int load_data(login_data* data, master_key* key){
     FILE* fp;
     fp = fopen(data->path, "rb");
     
     unsigned short ciphertext_block_count;
     fread(&(ciphertext_block_count), 2, 1, fp);
     
-    if(!ciphertext_block_count){
-        //generate_token(key, data->key_token);
+    if(!ciphertext_block_count)
         return 0;
-    }
     
-    BYTE ciphertext[ciphertext_block_count * 16];
-    BYTE main_iv[16];
-    BYTE mac[32];
-    BYTE message[ciphertext_block_count * 16 + 16];
-    BYTE* cleartext = (BYTE*)malloc(ciphertext_block_count * 16);
+    byte ciphertext[ciphertext_block_count * 16];
+    byte main_iv[16];
+    byte mac[32];
+    byte message[ciphertext_block_count * 16 + 16];
+    byte* cleartext = (byte*)malloc(ciphertext_block_count * 16);
     fread(ciphertext, ciphertext_block_count * 16, 1, fp);
     fread(main_iv, 16, 1, fp);
     fread(mac, 32, 1, fp);
-    
-    
     
     memcpy(message, ciphertext, ciphertext_block_count * 16);
     memcpy(message + ciphertext_block_count * 16, main_iv, 16);
@@ -335,14 +317,9 @@ int LoadData(LoginData* data, Key* key){
     EVP_PKEY_free(m_key);
     generate_token(key, data->key_token);
     
-    
-    
-    
-    
-    
     decrypt(ciphertext, ciphertext_block_count * 16, key->key, main_iv, cleartext);
     
-    BYTE* current_pointer = cleartext;
+    byte* current_pointer = cleartext;
     memcpy(&(data->pair_count), current_pointer, 4);
     current_pointer += 4;
     
@@ -350,8 +327,7 @@ int LoadData(LoginData* data, Key* key){
     // time (4 bytes) number of iv generations (4 bytes) something else (8 bytes)
     current_pointer += 4 + 4 + 8;
     
-    
-    data->loginPairs = (LoginPair*)malloc(sizeof(LoginPair) * data->pair_count);
+    data->login_pairs = (login_pair*)malloc(sizeof(login_pair) * data->pair_count);
     for (unsigned int i = 0; i < data->pair_count; i++)
     {
         unsigned int login_size;
@@ -363,56 +339,44 @@ int LoadData(LoginData* data, Key* key){
         memcpy(&password_block_count, current_pointer, 2);
         current_pointer += 2;
         
-        data->loginPairs[i].login_size = login_size;
-        data->loginPairs[i].password_block_count = password_block_count;
-        data->loginPairs[i].login = (BYTE*)malloc(login_size);
-        data->loginPairs[i].password = (BYTE*)malloc(password_block_count * 16);
+        data->login_pairs[i].login_size = login_size;
+        data->login_pairs[i].password_block_count = password_block_count;
+        data->login_pairs[i].login = (byte*)malloc(login_size);
+        data->login_pairs[i].password = (byte*)malloc(password_block_count * 16);
         
         
-        memcpy(data->loginPairs[i].login, current_pointer, login_size);
+        memcpy(data->login_pairs[i].login, current_pointer, login_size);
         current_pointer += login_size;
         
     }
-    // for (unsigned int i = 0; i < data->pair_count; i++)
-    // {
-    //     fread(data->loginPairs[i].password, data->loginPairs[i].password_block_count * 16, 1, fp);
-    //     fread(data->loginPairs[i].password_iv, 16, 1, fp);
-    // }
+    
     for (int i = 0; i < data->pair_count; i++)
     {
-        memcpy(data->loginPairs[i].password, current_pointer, data->loginPairs[i].password_block_count * 16);
-        current_pointer += data->loginPairs[i].password_block_count * 16;
-        memcpy(data->loginPairs[i].password_iv, current_pointer, 16);
+        memcpy(data->login_pairs[i].password, current_pointer, data->login_pairs[i].password_block_count * 16);
+        current_pointer += data->login_pairs[i].password_block_count * 16;
+        memcpy(data->login_pairs[i].password_iv, current_pointer, 16);
         current_pointer += 16;
     }
-    
-    
-    
     
     fclose(fp);
     free(cleartext);
     return 1;
 }
 
-// return false if failed
-int SaveData(LoginData* data, Key* key){
-    if(verify_key(key, data->key_token)){
-        return 0;
-    }
-    
+void save_data(login_data* data, master_key* key){
     FILE* file_ptr;
     file_ptr = fopen(data->path, "wb");
+    
     // TODO(fungus): add metadata
     // time (4 bytes) number of iv generations (4 bytes) something else (8 bytes)
     unsigned int cleartext_size = sizeof(data->pair_count) + 4 + 4 + 8;
     for (int i = 0; i < data->pair_count; i++)
     {
-        cleartext_size += sizeof(unsigned int) + sizeof(unsigned short) + data->loginPairs[i].login_size + data->loginPairs[i].password_block_count * 16 + 16;
+        cleartext_size += sizeof(unsigned int) + sizeof(unsigned short) + data->login_pairs[i].login_size + data->login_pairs[i].password_block_count * 16 + 16;
     }
-    BYTE ciphertext[((cleartext_size + 15) / 16) * 16 + 16];
-    BYTE* cleartext_to_encrypt = (BYTE*)malloc(cleartext_size);
-    BYTE* current_pointer = cleartext_to_encrypt;
-    
+    byte ciphertext[((cleartext_size + 15) / 16) * 16 + 16];
+    byte* cleartext_to_encrypt = (byte*)malloc(cleartext_size);
+    byte* current_pointer = cleartext_to_encrypt;
     
     memcpy(current_pointer, &(data->pair_count), 4);
     current_pointer += 4;
@@ -421,64 +385,54 @@ int SaveData(LoginData* data, Key* key){
     
     for (unsigned int i = 0; i < data->pair_count; i++)
     {
-        memcpy(current_pointer, &(data->loginPairs[i].login_size), 4);
+        memcpy(current_pointer, &(data->login_pairs[i].login_size), 4);
         current_pointer += 4;
-        memcpy(current_pointer, &(data->loginPairs[i].password_block_count), 2);
+        memcpy(current_pointer, &(data->login_pairs[i].password_block_count), 2);
         current_pointer += 2;
-        memcpy(current_pointer, data->loginPairs[i].login, data->loginPairs[i].login_size);
-        current_pointer += data->loginPairs[i].login_size;
+        memcpy(current_pointer, data->login_pairs[i].login, data->login_pairs[i].login_size);
+        current_pointer += data->login_pairs[i].login_size;
     }
-    
     
     for (int i = 0; i < data->pair_count; i++)
     {
-        memcpy(current_pointer, data->loginPairs[i].password, data->loginPairs[i].password_block_count * 16);
-        current_pointer += data->loginPairs[i].password_block_count * 16;
-        memcpy(current_pointer, data->loginPairs[i].password_iv, 16);
+        memcpy(current_pointer, data->login_pairs[i].password, data->login_pairs[i].password_block_count * 16);
+        current_pointer += data->login_pairs[i].password_block_count * 16;
+        memcpy(current_pointer, data->login_pairs[i].password_iv, 16);
         current_pointer += 16;
     }
     
-    
-    BYTE iv[16];
-    BYTE mac[32] = {0};
-    RandomIV(iv);
+    byte iv[16];
+    byte mac[32] = {0};
+    random_iv(iv);
     
     unsigned short ciphertext_block_count = encrypt(cleartext_to_encrypt, cleartext_size, key->key, iv, ciphertext) / 16;
     
-    BYTE message[ciphertext_block_count * 16 + 16];
+    byte message[ciphertext_block_count * 16 + 16];
     memcpy(message, ciphertext, ciphertext_block_count * 16);
     memcpy(message + ciphertext_block_count * 16, iv, 16);
-    
-    
     
     EVP_PKEY* m_key = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, key->m_key, 32);
     create_hmac(message, ciphertext_block_count * 16 + 16, mac, m_key);
     EVP_PKEY_free(m_key);
-    
-    
     
     fwrite(&ciphertext_block_count, 2, 1, file_ptr);
     fwrite(ciphertext, ciphertext_block_count * 16, 1, file_ptr);
     fwrite(iv, 16, 1, file_ptr);
     fwrite(mac, 32, 1 , file_ptr);
     
-    
-    
     fclose(file_ptr);
     free(cleartext_to_encrypt);
-    return 1;
 }
 
 
 
-void CopyToClipboard(char* input){
-    
+void copy_to_clipboard(char* input){
     char command[INPUT_LIMIT];
     sprintf(command, "printf %s | xclip -sel clip", input);
     system(command);
 }
 
-int GetPath(char* path, char* prompt, WINDOW* w_prompt){
+int get_path(char* path, char* prompt, WINDOW* w_prompt){
     mvwprintw(w_prompt, 0, 0, prompt);
     
     wgetnstr(w_prompt, path, PATH_LIMIT);
@@ -486,9 +440,7 @@ int GetPath(char* path, char* prompt, WINDOW* w_prompt){
 }
 
 // returns the size of the login WITH THE NULL TERMINATOR
-unsigned int GetUniqueLogin(LoginData* data, BYTE* login, char* prompt, WINDOW* w_prompt){
-    
-    
+unsigned int get_unique_login(login_data* data, byte* login, char* prompt, WINDOW* w_prompt){
     login_input:
     
     mvwprintw(w_prompt, 0, 0, prompt);
@@ -498,48 +450,42 @@ unsigned int GetUniqueLogin(LoginData* data, BYTE* login, char* prompt, WINDOW* 
     
     for (unsigned i = 0; i < data->pair_count; i++)
     {
-        if(!strcmp(login, data->loginPairs[i].login)){
+        if(!strcmp(login, data->login_pairs[i].login)){
             mvwprintw(w_prompt, 1, 0, "Login already used.\n");
             wgetch(w_prompt);
             goto login_input;
         }   
     }
     
-    
     return login_size;
 }
 
 // returns the size of the password WITH THE NULL TERMINATOR
-unsigned int GetPassword(BYTE* password, char* prompt, WINDOW* w_prompt){
-    
-    
+unsigned int get_password(byte* password, char* prompt, WINDOW* w_prompt){
     mvwprintw(w_prompt, 0, 0, prompt);
     wgetnstr(w_prompt, password, INPUT_LIMIT-1);
     unsigned int password_size = strlen(password) + 1;
     
-    
     return password_size;
 }
 
-void RandomPassword(unsigned int password_size, BYTE* password){
-    
+void random_password(unsigned int password_size, byte* password){
     unsigned int raw_password_size = (unsigned int)ceilf((float)(password_size - 1.f) * 0.75f);
     
-    BYTE raw_password[raw_password_size];
+    byte raw_password[raw_password_size];
     
     RAND_bytes(raw_password, raw_password_size);
     
-    BYTE password_buffer[INPUT_LIMIT];
+    byte password_buffer[INPUT_LIMIT];
     
     EVP_EncodeBlock(password_buffer, raw_password, raw_password_size);
     memcpy(password, password_buffer, password_size - 1);
     password[password_size-1] = 0;
-    
 }
 
-void GetKey(Key* key, char* prompt, WINDOW* w_prompt){
-    BYTE password[INPUT_LIMIT];
-    BYTE master_key[32];
+void get_key(master_key* key, char* prompt, WINDOW* w_prompt){
+    byte password[INPUT_LIMIT];
+    byte master_key[32];
     mvwprintw(w_prompt, 0, 0, prompt);
     
     wgetnstr(w_prompt, password, INPUT_LIMIT-1);
@@ -547,131 +493,115 @@ void GetKey(Key* key, char* prompt, WINDOW* w_prompt){
     derive_key(password, -1, salt1, master_key, N_ITERATIONS_MASTER);
     derive_key(master_key, 32, salt2, key->key, N_ITERATIONS_CHILD);
     derive_key(master_key, 32, salt3, key->m_key, N_ITERATIONS_CHILD);
-    
 }
 
 
 
-void AddEntry(LoginData* data, Key* key, BYTE* login, unsigned int login_size, BYTE* password, unsigned int password_size){
-    
-    
-    BYTE* encryptedPassword;
-    BYTE iv[16];
+void add_entry(login_data* data, master_key* key, byte* login, unsigned int login_size, byte* password, unsigned int password_size){
+    byte* encryptedPassword;
+    byte iv[16];
     unsigned short password_block_count = (password_size + 15) / 16;
     
-    RandomIV(iv);
+    random_iv(iv);
     
-    encryptedPassword = (BYTE*)malloc(password_block_count * 16);
+    encryptedPassword = (byte*)malloc(password_block_count * 16);
     password_block_count = encrypt(password, password_size, key->key, iv, encryptedPassword) / 16;
     
+    data->login_pairs = (login_pair*)realloc(data->login_pairs, (data->pair_count + 1) * sizeof(login_pair));
     
-    data->loginPairs = (LoginPair*)realloc(data->loginPairs, (data->pair_count + 1) * sizeof(LoginPair));
+    data->login_pairs[data->pair_count].login_size = login_size;
+    data->login_pairs[data->pair_count].password_block_count = password_block_count;
     
-    data->loginPairs[data->pair_count].login_size = login_size;
-    data->loginPairs[data->pair_count].password_block_count = password_block_count;
+    memcpy(data->login_pairs[data->pair_count].password_iv, iv, 16);
     
-    // data->loginPairs[data->pair_count].password_iv = iv;
-    memcpy(data->loginPairs[data->pair_count].password_iv, iv, 16);
-    
-    data->loginPairs[data->pair_count].login = login;
-    data->loginPairs[data->pair_count].password = encryptedPassword;
+    data->login_pairs[data->pair_count].login = login;
+    data->login_pairs[data->pair_count].password = encryptedPassword;
     (data->pair_count)++;
     
-    
-    SaveData(data, key);
-    
+    save_data(data, key);
 }
 
-void RemoveEntry(LoginData* data, unsigned int index, Key* key){
-    free(data->loginPairs[index].login);
-    free(data->loginPairs[index].password);
+void remove_entry(login_data* data, unsigned int index, master_key* key){
+    free(data->login_pairs[index].login);
+    free(data->login_pairs[index].password);
     
     for (unsigned int i = index + 1; i < data->pair_count; i++)
     {
-        data->loginPairs[i - 1] = data->loginPairs[i];
+        data->login_pairs[i - 1] = data->login_pairs[i];
     }
-    data->loginPairs = (LoginPair*)realloc(data->loginPairs, (data->pair_count - 1) * sizeof(LoginPair));
+    data->login_pairs = (login_pair*)realloc(data->login_pairs, (data->pair_count - 1) * sizeof(login_pair));
     data->pair_count--;
     
-    SaveData(data, key);
+    save_data(data, key);
 }
 
-void DecryptEntry(LoginData* data, unsigned int index, Key* key, BYTE* password){
-    
-    decrypt(data->loginPairs[index].password, data->loginPairs[index].password_block_count * 16, key->key, data->loginPairs[index].password_iv, password);
+void decrypt_entry(login_data* data, unsigned int index, master_key* key, byte* password){
+    decrypt(data->login_pairs[index].password, data->login_pairs[index].password_block_count * 16, key->key, data->login_pairs[index].password_iv, password);
 }
 
-void ChangeEntryLogin(LoginData* data, unsigned int index, Key* key, BYTE* new_login, unsigned int new_login_size){
+void change_entry_login(login_data* data, unsigned int index, master_key* key, byte* new_login, unsigned int new_login_size){
+    free(data->login_pairs[index].login);
     
-    free(data->loginPairs[index].login);
+    data->login_pairs[index].login = new_login;
+    data->login_pairs[index].login_size = new_login_size;
     
-    data->loginPairs[index].login = new_login;
-    data->loginPairs[index].login_size = new_login_size;
-    
-    SaveData(data, key);
+    save_data(data, key);
 }
 
-void ChangeEntryPassword(LoginData* data, unsigned int index, Key* key, BYTE* new_password, unsigned int new_password_size){
-    
+void change_entry_password(login_data* data, unsigned int index, master_key* key, byte* new_password, unsigned int new_password_size){
     unsigned short password_block_count = (new_password_size + 15) / 16;
-    BYTE iv[16];
-    BYTE* encryptedPassword;
+    byte iv[16];
+    byte* encryptedPassword;
     
-    RandomIV(iv);
+    random_iv(iv);
     
-    encryptedPassword = (BYTE*)malloc(password_block_count * 16);
+    encryptedPassword = (byte*)malloc(password_block_count * 16);
     password_block_count = encrypt(new_password, new_password_size, key->key, iv, encryptedPassword) / 16;
     
+    free(data->login_pairs[index].password);
+    data->login_pairs[index].password = encryptedPassword;
+    data->login_pairs[index].password_block_count = password_block_count;
     
+    memcpy(data->login_pairs[data->pair_count].password_iv, iv, 16);
     
-    free(data->loginPairs[index].password);
-    data->loginPairs[index].password = encryptedPassword;
-    data->loginPairs[index].password_block_count = password_block_count;
-    
-    memcpy(data->loginPairs[data->pair_count].password_iv, iv, 16);
-    
-    SaveData(data, key);
+    save_data(data, key);
 }
 
-
-void ChangeVaultPassword(LoginData* data, Key* key, Key* new_key){
-    
+void change_vault_password(login_data* data, master_key* key, master_key* new_key){
     for (int i = 0; i < data->pair_count; i += 1){
+        byte password[data->login_pairs[i].password_block_count * 16];
+        decrypt(data->login_pairs[i].password, data->login_pairs[i].password_block_count * 16, key->key, data->login_pairs[i].password_iv, password);
         
-        BYTE password[data->loginPairs[i].password_block_count * 16];
-        decrypt(data->loginPairs[i].password, data->loginPairs[i].password_block_count * 16, key->key, data->loginPairs[i].password_iv, password);
+        byte iv[16];
+        byte* encryptedPassword;
         unsigned short password_block_count;
-        BYTE iv[16];
-        BYTE* encryptedPassword;
         {
-            
             unsigned int password_size = strlen(password) + 1;
-            
             password_block_count = (password_size + 15) / 16;
             
-            RandomIV(iv);
+            random_iv(iv);
             
-            encryptedPassword = (BYTE*)malloc(password_block_count * 16);
+            encryptedPassword = (byte*)malloc(password_block_count * 16);
             password_block_count = encrypt(password, password_size, new_key->key, iv, encryptedPassword) / 16;
         }
         
-        free(data->loginPairs[i].password);
-        data->loginPairs[i].password = encryptedPassword;
-        data->loginPairs[i].password_block_count = password_block_count;
-        memcpy(data->loginPairs[i].password_iv, iv, 16);
-        
+        free(data->login_pairs[i].password);
+        data->login_pairs[i].password = encryptedPassword;
+        data->login_pairs[i].password_block_count = password_block_count;
+        memcpy(data->login_pairs[i].password_iv, iv, 16);
     }
     
-    SaveData(data, new_key);
-    
+    save_data(data, new_key);
 }
 
 
 
-unsigned int Menu(int height, int width, int y, int x, char** options, unsigned int options_count, unsigned int start_option){
+unsigned int create_menu(int height, int width, int y, int x, char** options, unsigned int options_count, unsigned int start_option){
     int curs_vis = curs_set(0);
+    
     WINDOW* menu_border = newwin(height + 2, width + 4, y - 1, x - 2);
     WINDOW* menu = derwin(menu_border, height, width, 1, 2);
+    
     keypad(menu, true);
     
     box(menu_border, 0, 0);
@@ -684,9 +614,12 @@ unsigned int Menu(int height, int width, int y, int x, char** options, unsigned 
         {   
             if(i == selected)
                 wattron(menu, A_STANDOUT);
+            
             mvwprintw(menu, i, 0, "%-*s", width, options[i]);
+            
             wattroff(menu, A_STANDOUT);
         }
+        
         touchwin(menu_border);
         int input = wgetch(menu);
         
@@ -700,15 +633,16 @@ unsigned int Menu(int height, int width, int y, int x, char** options, unsigned 
             curs_set(curs_vis);
             return selected;
         }
-        
     }
 }
 
-// NOTE(fungus): this clears the prompt window
-unsigned int YesOrNo(WINDOW* w_prompt, char* prompt){
+
+unsigned int yes_no_prompt(WINDOW* w_prompt, char* prompt){
     noecho();
+    
     wclear(w_prompt);
     mvwprintw(w_prompt, 0, 0, prompt);
+    
     int ans = 0;
     do
     {
@@ -718,40 +652,18 @@ unsigned int YesOrNo(WINDOW* w_prompt, char* prompt){
     
     wclear(w_prompt);
     wrefresh(w_prompt);
+    
     echo();
+    
     return ans == 'y' || ans == 'Y' ? 1 : 0;
 }
 
-unsigned int ChooseMenu(){
-    char * options[] = {"Create password bank", "Open password bank", "Exit"};
-    return Menu(3, 30, getmaxy(stdscr)/2-3 , getmaxx(stdscr)/2-17, options, 3, 0);
-}
-
-void InitializeData(LoginData* data){
-    data->pair_count = 0;
-    data->loginPairs = NULL;
-    memset(data->key_token, 0, 32);
-    memset(data->path, 0, PATH_LIMIT);
-}
-
-void DestroyData(LoginData* data){
-    for (unsigned int i = 0; i < data->pair_count; i++)
-    {
-        free(data->loginPairs[i].login);
-        free(data->loginPairs[i].password);
-    }
-    if(data->loginPairs)
-        free(data->loginPairs);
-}
-
 int main(){
-    Initialize();
+    initialize();
     initscr();
-    getch(); //4coder
+    getch(); // 4coder
     cbreak();
-    //noecho();
-    //keypad(stdscr, 1);
-    //curs_set(0);
+    
     if(has_colors()){
         start_color();
         use_default_colors();
@@ -759,28 +671,23 @@ int main(){
     
     // TODO(fungus): make better inputs, add third key for password encryption, make a 30s clipboard reset, add file encryption, test, add comments, clean up code etc.
     
-    int max_y, max_x;
+    int height, width;
+    getmaxyx(stdscr, height, width);
     
-    getmaxyx(stdscr, max_y, max_x);
+    login_data data;
+    initialize_data(&data);
     
-    // UP_ARROW = KEY_UP
-    // DOWN_ARROW = KEY_DOWN
+    prompt_window w_prompt;
+    w_prompt.border = newwin(height/3, width, 0, 0);
+    w_prompt.prompt = derwin(w_prompt.border, height/3 - 2, width - 4, 1, 2);
     
-    LoginData data;
-    InitializeData(&data);
-    
-    //unsigned int mode = ModeChooseMenu();
-    
-    PromptWindow prompt_window;
-    prompt_window.border = newwin(max_y/3, max_x, 0, 0);
-    prompt_window.prompt = derwin(prompt_window.border, max_y/3 - 2, max_x - 4, 1, 2);
-    
-    
-    box(prompt_window.border, 0, 0);
-    wrefresh(prompt_window.border);
+    box(w_prompt.border, 0, 0);
+    wrefresh(w_prompt.border);
     
     first_menu:
-    unsigned int first_option = ChooseMenu();
+    
+    char * first_options[] = {"Create password bank", "Open password bank", "Exit"};
+    unsigned int first_option = create_menu(3, 30, height/2-3 , width/2-17, first_options, 3, 0);
     
     if(first_option == 2){
         endwin();
@@ -788,76 +695,66 @@ int main(){
     }
     
     if(!first_option){
-        // TODO(fungus): error checking
-        
         vault_create:
-        if(!GetPath(data.path, "Enter new vault path and name: ", prompt_window.prompt)){
-            
-            unsigned int ans = YesOrNo(prompt_window.prompt, "File already exists. Do you want to override? (y/n)");
+        if(!get_path(data.path, "Enter new vault path and name: ", w_prompt.prompt)){
+            unsigned int ans = yes_no_prompt(w_prompt.prompt, "File already exists. Do you want to override? (y/n)");
             if(!ans)
                 goto first_menu;
-            
         }
-        
         {
-            
             char vault_prompt[INPUT_LIMIT];
             
             sprintf(vault_prompt, "Do you want to create a new vault at: \"%s\"? (y/n)", data.path);
             
-            unsigned int ans = YesOrNo(prompt_window.prompt, vault_prompt);
+            unsigned int ans = yes_no_prompt(w_prompt.prompt, vault_prompt);
             if(!ans)
                 goto first_menu;
             
-            Key key;
+            master_key key;
             
-            GetKey(&key, "Enter new vault password: ", prompt_window.prompt);
+            get_key(&key, "Enter new vault password: ", w_prompt.prompt);
             
-            
-            wclear(prompt_window.prompt);
-            wrefresh(prompt_window.prompt);
+            wclear(w_prompt.prompt);
+            wrefresh(w_prompt.prompt);
             
             generate_token(&key, data.key_token);
             
-            
-            SaveData(&data, &key);
+            save_data(&data, &key);
         }
-        
     }
     else {
-        if(GetPath(data.path, "Enter vault path: ", prompt_window.prompt)){
-            unsigned int ans = YesOrNo(prompt_window.prompt, "File does not exist. Do you want to create a new one? (y/n)");
+        if(get_path(data.path, "Enter vault path: ", w_prompt.prompt)){
+            unsigned int ans = yes_no_prompt(w_prompt.prompt, "File does not exist. Do you want to create a new one? (y/n)");
             if(ans)
                 goto vault_create;
             else
                 goto first_menu;
         }
-        wclear(prompt_window.prompt);
+        
+        wclear(w_prompt.prompt);
+        
         pass:
         {
-            Key key;
+            master_key key;
+            get_key(&key, "Enter vault password: ", w_prompt.prompt);
             
+            wclear(w_prompt.prompt);
+            wrefresh(w_prompt.prompt);
             
-            GetKey(&key, "Enter vault password: ", prompt_window.prompt);
-            wclear(prompt_window.prompt);
-            wrefresh(prompt_window.prompt);
-            
-            if(!LoadData(&data, &key)){
-                mvwprintw(prompt_window.prompt, 0, 0, "Invalid password. Do you want to try again? (y/n)");
-                unsigned int ans = YesOrNo(prompt_window.prompt, "Invalid password. Do you want to try again? (y/n)");
+            if(!load_data(&data, &key)){
+                mvwprintw(w_prompt.prompt, 0, 0, "Invalid password. Do you want to try again? (y/n)");
+                unsigned int ans = yes_no_prompt(w_prompt.prompt, "Invalid password. Do you want to try again? (y/n)");
                 if(ans)
                     goto pass;
                 goto first_menu;
             }
-            
         }
-        
     }
     
     clear();
     refresh();
-    box(prompt_window.border, 0, 0);
-    wrefresh(prompt_window.border);
+    box(w_prompt.border, 0, 0);
+    wrefresh(w_prompt.border);
     
     // TODO(fungus): move Change vault password to other menu
     const unsigned int extra_options_count = 5;
@@ -869,314 +766,268 @@ int main(){
         "Exit"
     };
     
-    
     char **options = (char**)malloc(sizeof(char*) * (data.pair_count+extra_options_count));
     for(int i = 0; i < data.pair_count; ++i){
-        options[i] = data.loginPairs[i].login;
+        options[i] = data.login_pairs[i].login;
     }
     
     memcpy(&options[data.pair_count], extra_options, extra_options_count * sizeof(char*));
     
     unsigned int last_option = 0;
     
-    
     while(1){
+        last_option = create_menu(data.pair_count+extra_options_count, width/2,
+                                  height/2-(data.pair_count+3)/2 , width/2-(width/4),
+                                  options, data.pair_count+extra_options_count, last_option);
         
-        last_option = Menu(data.pair_count+extra_options_count, getmaxx(stdscr)/2,
-                           getmaxy(stdscr)/2-(data.pair_count+3)/2 , getmaxx(stdscr)/2-(getmaxx(stdscr)/4),
-                           options, data.pair_count+extra_options_count, last_option);
         if(last_option < data.pair_count){
-            
             pass_show:
             {
-                wclear(prompt_window.prompt);
+                wclear(w_prompt.prompt);
                 
-                
-                Key key;
-                
-                GetKey(&key, "Enter vault password: ", prompt_window.prompt);
-                
+                master_key key;
+                get_key(&key, "Enter vault password: ", w_prompt.prompt);
                 
                 if(!verify_key(&key, data.key_token)){
                     
-                    wclear(prompt_window.prompt);
-                    BYTE password[data.loginPairs[last_option].password_block_count * 16];
-                    DecryptEntry(&data, last_option, &key, password);
-                    CopyToClipboard(password);
+                    wclear(w_prompt.prompt);
                     
-                    mvwprintw(prompt_window.prompt, 0 ,0, "Password copied to clipboard.");
-                    wrefresh(prompt_window.prompt);
+                    byte password[data.login_pairs[last_option].password_block_count * 16];
+                    decrypt_entry(&data, last_option, &key, password);
+                    
+                    copy_to_clipboard(password);
+                    
+                    mvwprintw(w_prompt.prompt, 0 ,0, "Password copied to clipboard.");
+                    wrefresh(w_prompt.prompt);
                 }
                 else{
-                    unsigned int ans = YesOrNo(prompt_window.prompt, "Invalid password. Do you want to try again? (y/n)");
+                    unsigned int ans = yes_no_prompt(w_prompt.prompt, "Invalid password. Do you want to try again? (y/n)");
                     if(ans)
                         goto pass_show;
-                    
                 }
-                
             }
         }
         else if(last_option == data.pair_count){ // Add entry
             pass_add:
             {
+                wclear(w_prompt.prompt);
                 
-                wclear(prompt_window.prompt);
-                
-                
-                Key key;
-                
-                GetKey(&key, "Enter vault password: ", prompt_window.prompt);
-                
+                master_key key;
+                get_key(&key, "Enter vault password: ", w_prompt.prompt);
                 
                 if(!verify_key(&key, data.key_token)){
-                    wclear(prompt_window.prompt);
+                    wclear(w_prompt.prompt);
                     
-                    BYTE* login = malloc(sizeof(BYTE) * INPUT_LIMIT); 
-                    unsigned int login_size = GetUniqueLogin(&data, login, "Enter new login: ", prompt_window.prompt);
+                    byte* login = malloc(sizeof(byte) * INPUT_LIMIT); 
+                    unsigned int login_size = get_unique_login(&data, login, "Enter new login: ", w_prompt.prompt);
                     login = realloc(login, login_size);
                     
-                    wclear(prompt_window.prompt);
+                    wclear(w_prompt.prompt);
                     
-                    BYTE password[INPUT_LIMIT];
-                    unsigned int password_size = GetPassword(password, "Enter password: ", prompt_window.prompt);
+                    byte password[INPUT_LIMIT];
+                    unsigned int password_size = get_password(password, "Enter password: ", w_prompt.prompt);
                     
+                    add_entry(&data, &key,  login, login_size, password, password_size);
                     
-                    AddEntry(&data, &key,  login, login_size, password, password_size);
-                    
-                    
-                    
-                    wclear(prompt_window.prompt);
-                    wrefresh(prompt_window.prompt);
+                    wclear(w_prompt.prompt);
+                    wrefresh(w_prompt.prompt);
                 }
                 else{
-                    unsigned int ans = YesOrNo(prompt_window.prompt, "Invalid password. Do you want to try again? (y/n)");
+                    unsigned int ans = yes_no_prompt(w_prompt.prompt, "Invalid password. Do you want to try again? (y/n)");
                     if(ans)
                         goto pass_add;
-                    
                 }
             }
             
-            
-            
             options = (char**)realloc(options, sizeof(char*) * (data.pair_count+extra_options_count));
             
-            options[data.pair_count-1] = data.loginPairs[data.pair_count-1].login; 
+            options[data.pair_count-1] = data.login_pairs[data.pair_count-1].login; 
             memcpy(&options[data.pair_count], extra_options, extra_options_count * sizeof(char*));
-            
         }
         else if(last_option == data.pair_count+1){ // Remove entry
-            
             pass_rem_enter:
-            wclear(prompt_window.prompt);
+            wclear(w_prompt.prompt);
             
-            Key key;
-            GetKey(&key, "Enter vault password: ", prompt_window.prompt);
-            
+            master_key key;
+            get_key(&key, "Enter vault password: ", w_prompt.prompt);
             
             if(!verify_key(&key, data.key_token)){
                 last_option = 0;
                 
                 pass_rem:
                 char *rem_options[data.pair_count+1];
-                
                 for (int i = 0; i < data.pair_count; i += 1){
-                    rem_options[i] = data.loginPairs[i].login;
+                    rem_options[i] = data.login_pairs[i].login;
                 }
                 
                 rem_options[data.pair_count] = "Exit";
                 
-                wclear(prompt_window.prompt);
-                mvwprintw(prompt_window.prompt, 0, 0, "Choose entry to remove...");
-                wrefresh(prompt_window.prompt);
+                wclear(w_prompt.prompt);
+                mvwprintw(w_prompt.prompt, 0, 0, "Choose entry to remove...");
+                wrefresh(w_prompt.prompt);
                 
                 clear();
                 refresh();
-                box(prompt_window.border, 0, 0);
-                wrefresh(prompt_window.border);
+                box(w_prompt.border, 0, 0);
+                wrefresh(w_prompt.border);
                 
-                unsigned int to_remove = Menu(data.pair_count+1, getmaxx(stdscr)/2, getmaxy(stdscr)/2-(data.pair_count+3)/2 , getmaxx(stdscr)/2-(getmaxx(stdscr)/4), rem_options, data.pair_count+1, 0);
-                
-                
+                unsigned int to_remove = create_menu(data.pair_count+1, width/2, 
+                                                     height/2-(data.pair_count+3)/2 , width/2-(width/4),
+                                                     rem_options, data.pair_count+1, 0);
                 
                 if(to_remove == data.pair_count){
                     clear();
                     refresh();
-                    box(prompt_window.border, 0, 0);
-                    wrefresh(prompt_window.border);
-                    wclear(prompt_window.prompt);
-                    wrefresh(prompt_window.prompt);
+                    box(w_prompt.border, 0, 0);
+                    wrefresh(w_prompt.border);
+                    wclear(w_prompt.prompt);
+                    wrefresh(w_prompt.prompt);
                     continue;
                 }
                 else{
-                    //char remove_prompt[strlen(data.loginPairs[to_remove].login) + 17];
                     char remove_prompt[INPUT_LIMIT];
-                    sprintf(remove_prompt, "Remove \"%s\"? (y/n)", data.loginPairs[to_remove].login);
+                    sprintf(remove_prompt, "Remove \"%s\"? (y/n)", data.login_pairs[to_remove].login);
                     
-                    unsigned int ans = YesOrNo(prompt_window.prompt, remove_prompt);
+                    unsigned int ans = yes_no_prompt(w_prompt.prompt, remove_prompt);
                     if(!ans)
                         goto pass_rem;
                     
-                    RemoveEntry(&data, to_remove, &key);
+                    remove_entry(&data, to_remove, &key);
                     clear();
                     refresh();
-                    box(prompt_window.border, 0, 0);
-                    wrefresh(prompt_window.border);
+                    box(w_prompt.border, 0, 0);
+                    wrefresh(w_prompt.border);
                 }
-                
-                
-                
             }
             else{
-                unsigned int ans = YesOrNo(prompt_window.prompt, "Invalid password. Do you want to try again? (y/n)");
+                unsigned int ans = yes_no_prompt(w_prompt.prompt, "Invalid password. Do you want to try again? (y/n)");
                 if(ans)
                     goto pass_rem_enter;
-                
             }
             
             options = (char**)realloc(options, sizeof(char*) * (data.pair_count+extra_options_count));
-            
             for(int i = 0; i < data.pair_count; ++i){
-                options[i] = data.loginPairs[i].login;
+                options[i] = data.login_pairs[i].login;
             }
             
             memcpy(&options[data.pair_count], extra_options, extra_options_count * sizeof(char*));
-            
-            
         }
         else if(last_option == data.pair_count+2){ // Change entry
-            
             pass_change_enter:
-            wclear(prompt_window.prompt);
+            wclear(w_prompt.prompt);
             
-            Key key;
-            
-            
-            GetKey(&key, "Enter vault password: ", prompt_window.prompt);
-            
+            master_key key;
+            get_key(&key, "Enter vault password: ", w_prompt.prompt);
             
             if(!verify_key(&key, data.key_token)){
-                last_option = 0;
-                
                 pass_change:
                 char *change_options[data.pair_count+1];
-                
                 for (int i = 0; i < data.pair_count; i += 1){
-                    change_options[i] = data.loginPairs[i].login;
+                    change_options[i] = data.login_pairs[i].login;
                 }
                 
                 change_options[data.pair_count] = "Exit";
                 
-                wclear(prompt_window.prompt);
-                mvwprintw(prompt_window.prompt, 0, 0, "Choose entry to change...");
-                wrefresh(prompt_window.prompt);
+                wclear(w_prompt.prompt);
+                mvwprintw(w_prompt.prompt, 0, 0, "Choose entry to change...");
+                wrefresh(w_prompt.prompt);
                 
                 clear();
                 refresh();
-                box(prompt_window.border, 0, 0);
-                wrefresh(prompt_window.border);
+                box(w_prompt.border, 0, 0);
+                wrefresh(w_prompt.border);
                 
-                unsigned int to_change = Menu(data.pair_count+1, getmaxx(stdscr)/2, getmaxy(stdscr)/2-(data.pair_count+3)/2 , getmaxx(stdscr)/2-(getmaxx(stdscr)/4), change_options, data.pair_count+1, 0);
-                
-                
+                unsigned int to_change = create_menu(data.pair_count+1, width/2,
+                                                     height/2-(data.pair_count+3)/2 , width/2-(width/4),
+                                                     change_options, data.pair_count+1, 0);
                 
                 if(to_change == data.pair_count){
                     clear();
                     refresh();
-                    box(prompt_window.border, 0, 0);
-                    wrefresh(prompt_window.border);
-                    wclear(prompt_window.prompt);
-                    wrefresh(prompt_window.prompt);
+                    box(w_prompt.border, 0, 0);
+                    wrefresh(w_prompt.border);
+                    wclear(w_prompt.prompt);
+                    wrefresh(w_prompt.prompt);
                     continue;
                 }
                 else{
+                    wclear(w_prompt.prompt);
                     
-                    wclear(prompt_window.prompt);
-                    
-                    BYTE* new_login = malloc(sizeof(BYTE) * INPUT_LIMIT); 
-                    unsigned int new_login_size = GetUniqueLogin(&data, new_login, "New login (leave blank if not changing): ", prompt_window.prompt);
+                    byte* new_login = malloc(sizeof(byte) * INPUT_LIMIT); 
+                    unsigned int new_login_size = get_unique_login(&data, new_login, "New login (leave blank if not changing): ", w_prompt.prompt);
                     new_login = realloc(new_login, new_login_size);
                     
-                    wclear(prompt_window.prompt);
+                    wclear(w_prompt.prompt);
                     
-                    BYTE new_password[INPUT_LIMIT];
-                    unsigned int new_password_size = GetPassword(new_password, "New password (leave blank if not changing): ", prompt_window.prompt);
+                    byte new_password[INPUT_LIMIT];
+                    unsigned int new_password_size = get_password(new_password, "New password (leave blank if not changing): ", w_prompt.prompt);
                     
                     if(new_login_size - 1)
-                        ChangeEntryLogin(&data, to_change, &key, new_login, new_login_size);
+                        change_entry_login(&data, to_change, &key, new_login, new_login_size);
                     if(new_password_size - 1)
-                        ChangeEntryPassword(&data, to_change, &key, new_password, new_password_size);
+                        change_entry_password(&data, to_change, &key, new_password, new_password_size);
                     
-                    options[to_change] = data.loginPairs[to_change].login;
+                    options[to_change] = data.login_pairs[to_change].login;
                     
                     clear();
                     refresh();
-                    box(prompt_window.border, 0, 0);
-                    wrefresh(prompt_window.border);
+                    box(w_prompt.border, 0, 0);
+                    wrefresh(w_prompt.border);
                 }
-                
-                
-                
             }
             else{
-                unsigned int ans = YesOrNo(prompt_window.prompt, "Invalid password. Do you want to try again? (y/n)");
+                unsigned int ans = yes_no_prompt(w_prompt.prompt, "Invalid password. Do you want to try again? (y/n)");
                 if(ans)
                     goto pass_change_enter;
-                
             }
-            
-            
         }
         else if(last_option == data.pair_count + 3){ // Change vault password
-            
-            
             v_pass_change_enter:
-            wclear(prompt_window.prompt);
+            wclear(w_prompt.prompt);
             
-            Key key;
-            GetKey(&key, "Enter old vault password: ", prompt_window.prompt);
+            master_key key;
+            get_key(&key, "Enter old vault password: ", w_prompt.prompt);
             
             if(!verify_key(&key, data.key_token)){
                 
-                Key new_key;
+                master_key new_key;
                 
-                wclear(prompt_window.prompt);
-                GetKey(&new_key, "Enter new vault password: ", prompt_window.prompt);
+                wclear(w_prompt.prompt);
+                get_key(&new_key, "Enter new vault password: ", w_prompt.prompt);
                 
-                unsigned int ans = YesOrNo(prompt_window.prompt, "Are you sure you want to change the vault's password? (y/n)");
+                unsigned int ans = yes_no_prompt(w_prompt.prompt, "Are you sure you want to change the vault's password? (y/n)");
                 
                 if(ans){
                     generate_token(&new_key, data.key_token);
-                    ChangeVaultPassword(&data, &key, &new_key);
+                    change_vault_password(&data, &key, &new_key);
                 }
                 else{
-                    wclear(prompt_window.prompt);
+                    wclear(w_prompt.prompt);
                     continue;
                 }
             }
             else{
-                unsigned int ans = YesOrNo(prompt_window.prompt, "Invalid password. Do you want to try again? (y/n)");
+                unsigned int ans = yes_no_prompt(w_prompt.prompt, "Invalid password. Do you want to try again? (y/n)");
                 if(ans)
                     goto v_pass_change_enter;
-                
             }
-            
-            
         }
         else{ // Exit
-            wclear(prompt_window.prompt);
-            mvwprintw(prompt_window.prompt, 0, 0, "Do you want to exit? (y/n)");
-            int ans = wgetch(prompt_window.prompt);
-            wclear(prompt_window.prompt);
-            wrefresh(prompt_window.prompt);
+            wclear(w_prompt.prompt);
+            mvwprintw(w_prompt.prompt, 0, 0, "Do you want to exit? (y/n)");
+            int ans = wgetch(w_prompt.prompt);
+            wclear(w_prompt.prompt);
+            wrefresh(w_prompt.prompt);
             if(ans == 'Y'  || ans == 'y')
                 break;
         }
     }
     
-    
-    
     free(options);
-    DestroyData(&data);
+    
+    destroy_data(&data);
+    
     endwin();
-    Finalize();
+    
+    finalize();
 }
