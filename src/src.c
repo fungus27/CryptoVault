@@ -1,9 +1,10 @@
 #include <stdlib.h>
 #include <string.h>
-#include <ncurses.h>
 #include <unistd.h>
 #include <assert.h>
 #include <math.h>
+#include <limits.h>
+#include <ncurses.h>
 
 #include <openssl/conf.h>
 #include <openssl/evp.h>
@@ -470,7 +471,7 @@ unsigned int get_password(byte* password, char* prompt, WINDOW* w_prompt){
 }
 
 void random_password(unsigned int password_size, byte* password){
-    unsigned int raw_password_size = (unsigned int)ceilf((float)(password_size - 1.f) * 0.75f);
+    unsigned int raw_password_size = (unsigned int)ceilf((float)(password_size - 1) * 0.75f);
     
     byte raw_password[raw_password_size];
     
@@ -480,7 +481,16 @@ void random_password(unsigned int password_size, byte* password){
     
     EVP_EncodeBlock(password_buffer, raw_password, raw_password_size);
     memcpy(password, password_buffer, password_size - 1);
-    password[password_size-1] = 0;
+    password[password_size - 1] = 0;
+}
+
+unsigned int get_uint(char* prompt, WINDOW* w_prompt){
+    char input[INPUT_LIMIT];
+    
+    mvwprintw(w_prompt, 0, 0, prompt);
+    wgetnstr(w_prompt, input, INPUT_LIMIT-1);
+    
+    return (unsigned int)min(strtoul(input, NULL, 10), UINT_MAX);
 }
 
 void get_key(master_key* key, char* prompt, WINDOW* w_prompt){
@@ -637,7 +647,7 @@ unsigned int create_menu(int height, int width, int y, int x, char** options, un
 }
 
 
-unsigned int yes_no_prompt(WINDOW* w_prompt, char* prompt){
+unsigned int yes_no_prompt(char* prompt, WINDOW* w_prompt){
     noecho();
     
     wclear(w_prompt);
@@ -697,7 +707,7 @@ int main(){
     if(!first_option){
         vault_create:
         if(!get_path(data.path, "Enter new vault path and name: ", w_prompt.prompt)){
-            unsigned int ans = yes_no_prompt(w_prompt.prompt, "File already exists. Do you want to override? (y/n)");
+            unsigned int ans = yes_no_prompt("File already exists. Do you want to override? (y/n)", w_prompt.prompt);
             if(!ans)
                 goto first_menu;
         }
@@ -706,7 +716,7 @@ int main(){
             
             sprintf(vault_prompt, "Do you want to create a new vault at: \"%s\"? (y/n)", data.path);
             
-            unsigned int ans = yes_no_prompt(w_prompt.prompt, vault_prompt);
+            unsigned int ans = yes_no_prompt(vault_prompt, w_prompt.prompt);
             if(!ans)
                 goto first_menu;
             
@@ -724,7 +734,7 @@ int main(){
     }
     else {
         if(get_path(data.path, "Enter vault path: ", w_prompt.prompt)){
-            unsigned int ans = yes_no_prompt(w_prompt.prompt, "File does not exist. Do you want to create a new one? (y/n)");
+            unsigned int ans = yes_no_prompt("File does not exist. Do you want to create a new one? (y/n)", w_prompt.prompt);
             if(ans)
                 goto vault_create;
             else
@@ -742,8 +752,7 @@ int main(){
             wrefresh(w_prompt.prompt);
             
             if(!load_data(&data, &key)){
-                mvwprintw(w_prompt.prompt, 0, 0, "Invalid password. Do you want to try again? (y/n)");
-                unsigned int ans = yes_no_prompt(w_prompt.prompt, "Invalid password. Do you want to try again? (y/n)");
+                unsigned int ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
                 if(ans)
                     goto pass;
                 goto first_menu;
@@ -780,7 +789,7 @@ int main(){
                                   height/2-(data.pair_count+3)/2 , width/2-(width/4),
                                   options, data.pair_count+extra_options_count, last_option);
         
-        if(last_option < data.pair_count){
+        if(last_option < data.pair_count){ // Show entry
             pass_show:
             {
                 wclear(w_prompt.prompt);
@@ -801,7 +810,7 @@ int main(){
                     wrefresh(w_prompt.prompt);
                 }
                 else{
-                    unsigned int ans = yes_no_prompt(w_prompt.prompt, "Invalid password. Do you want to try again? (y/n)");
+                    unsigned int ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
                     if(ans)
                         goto pass_show;
                 }
@@ -825,7 +834,18 @@ int main(){
                     wclear(w_prompt.prompt);
                     
                     byte password[INPUT_LIMIT];
-                    unsigned int password_size = get_password(password, "Enter password: ", w_prompt.prompt);
+                    unsigned int password_size;
+                    
+                    unsigned int generate = yes_no_prompt("Do you want to generate a strong password? (y/n)", w_prompt.prompt);
+                    wclear(w_prompt.prompt);
+                    
+                    if(generate){
+                        password_size = get_uint("Enter password lenght (recommended 16-64): ", w_prompt.prompt) + 1;
+                        random_password(password_size, password);
+                    }
+                    else{
+                        password_size = get_password(password, "Enter password: ", w_prompt.prompt);
+                    }
                     
                     add_entry(&data, &key,  login, login_size, password, password_size);
                     
@@ -833,7 +853,7 @@ int main(){
                     wrefresh(w_prompt.prompt);
                 }
                 else{
-                    unsigned int ans = yes_no_prompt(w_prompt.prompt, "Invalid password. Do you want to try again? (y/n)");
+                    unsigned int ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
                     if(ans)
                         goto pass_add;
                 }
@@ -888,7 +908,7 @@ int main(){
                     char remove_prompt[INPUT_LIMIT];
                     sprintf(remove_prompt, "Remove \"%s\"? (y/n)", data.login_pairs[to_remove].login);
                     
-                    unsigned int ans = yes_no_prompt(w_prompt.prompt, remove_prompt);
+                    unsigned int ans = yes_no_prompt(remove_prompt, w_prompt.prompt);
                     if(!ans)
                         goto pass_rem;
                     
@@ -900,7 +920,7 @@ int main(){
                 }
             }
             else{
-                unsigned int ans = yes_no_prompt(w_prompt.prompt, "Invalid password. Do you want to try again? (y/n)");
+                unsigned int ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
                 if(ans)
                     goto pass_rem_enter;
             }
@@ -976,7 +996,7 @@ int main(){
                 }
             }
             else{
-                unsigned int ans = yes_no_prompt(w_prompt.prompt, "Invalid password. Do you want to try again? (y/n)");
+                unsigned int ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
                 if(ans)
                     goto pass_change_enter;
             }
@@ -995,7 +1015,7 @@ int main(){
                 wclear(w_prompt.prompt);
                 get_key(&new_key, "Enter new vault password: ", w_prompt.prompt);
                 
-                unsigned int ans = yes_no_prompt(w_prompt.prompt, "Are you sure you want to change the vault's password? (y/n)");
+                unsigned int ans = yes_no_prompt("Are you sure you want to change the vault's password? (y/n)", w_prompt.prompt);
                 
                 if(ans){
                     generate_token(&new_key, data.key_token);
@@ -1007,18 +1027,14 @@ int main(){
                 }
             }
             else{
-                unsigned int ans = yes_no_prompt(w_prompt.prompt, "Invalid password. Do you want to try again? (y/n)");
+                unsigned int ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
                 if(ans)
                     goto v_pass_change_enter;
             }
         }
         else{ // Exit
             wclear(w_prompt.prompt);
-            mvwprintw(w_prompt.prompt, 0, 0, "Do you want to exit? (y/n)");
-            int ans = wgetch(w_prompt.prompt);
-            wclear(w_prompt.prompt);
-            wrefresh(w_prompt.prompt);
-            if(ans == 'Y'  || ans == 'y')
+            if(yes_no_prompt("Do you want to exit? (y/n)", w_prompt.prompt))
                 break;
         }
     }
