@@ -25,6 +25,7 @@
 #define N_ITERATIONS_MASTER 300000
 #define N_ITERATIONS_CHILD 10000
 
+
 typedef unsigned char BYTE;
 
 typedef struct{
@@ -296,311 +297,6 @@ int verify_key(Key* key, BYTE* token){
     
 }
 
-//void GetFixedInput(BYTE* buffer, unsigned int size, WINDOW* prompt){
-//keypad(prompt, true);
-//for (unsigned int i = 0; ; i++)
-//{
-//int input = wgetch(prompt);
-//if(input == 10)
-//break;
-//else if(input == KEY_BACKSPACE){
-//if(i > 0){
-//wmove(prompt, getcury(prompt), getcurx(prompt)-1);
-//wdelch(prompt);
-//wrefresh(prompt);
-//buffer[i-1] = 0;
-//i -= 1;
-//}
-//i -= 1;
-//continue;
-//}
-//else if(i == size - 2 || input >= KEY_MIN){
-//i--;
-//continue;
-//}
-//
-//waddch(prompt, input);
-//printw("%u", input);
-// i == size - 2
-//buffer[i] = input;
-//buffer[i + 1] = 0;
-//
-//}
-//keypad(prompt, false);
-//}
-
-void GetMainPassword(Key* key, char* prompt, WINDOW* w_prompt){
-    BYTE password[INPUT_LIMIT];
-    BYTE master_key[32];
-    mvwprintw(w_prompt, 0, 0, prompt);
-    
-    wgetnstr(w_prompt, password, INPUT_LIMIT-1);
-    
-    derive_key(password, -1, salt1, master_key, N_ITERATIONS_MASTER);
-    derive_key(master_key, 32, salt2, key->key, N_ITERATIONS_CHILD);
-    derive_key(master_key, 32, salt3, key->m_key, N_ITERATIONS_CHILD);
-    
-}
-
-int GetPath(LoginData* data, char* prompt, WINDOW* w_prompt){
-    mvwprintw(w_prompt, 0, 0, prompt);
-    
-    wgetnstr(w_prompt, data->path, PATH_LIMIT);
-    return access(data->path, F_OK);
-}
-
-int AddEntry(Key* key, LoginData* data, WINDOW* w_prompt){
-    
-    
-    
-    BYTE *login = (BYTE*)malloc(sizeof(BYTE) * INPUT_LIMIT);
-    unsigned int login_size;
-    
-    
-    
-    while(1){
-        
-        char unique = 1;
-        
-        mvwprintw(w_prompt, 0, 0, "Enter login: ");
-        
-        wgetnstr(w_prompt, login, INPUT_LIMIT-1);
-        login_size = strlen(login) + 1;
-        
-        for (unsigned i = 0; i < data->pair_count; i++)
-        {
-            if(!strcmp(login, data->loginPairs[i].login)){
-                mvwprintw(w_prompt, 1, 0, "Login already used.\n");
-                wgetch(w_prompt);
-                unique = 0;
-                break;
-            }   
-        }
-        
-        if(unique)
-            break;
-        
-    }
-    
-    login = realloc(login, login_size);
-    
-    wclear(w_prompt);
-    
-    BYTE* encryptedPassword;
-    BYTE iv[16];
-    unsigned short password_block_count;
-    
-    
-    unsigned int ans = YesOrNo(w_prompt, "Do you want to generate a strong password? (y/n)");
-    
-    if(!ans)
-    {
-        BYTE password[INPUT_LIMIT];
-        
-        
-        mvwprintw(w_prompt, 0, 0, "Enter password: ");
-        wgetnstr(w_prompt, password, INPUT_LIMIT-1);
-        unsigned int password_size = strlen(password) + 1;
-        password_block_count = (password_size + 15) / 16;
-        
-        RandomIV(iv);
-        
-        encryptedPassword = (BYTE*)malloc(password_block_count * 16);
-        password_block_count = encrypt(password, password_size, key->key, iv, encryptedPassword) / 16;
-    }
-    else
-    {
-        char password_size_s[4];
-        mvwprintw(w_prompt, 0, 0, "Enter password lenght (recommended: 16-64): ");
-        wgetnstr(w_prompt, password_size_s , 3);
-        
-        unsigned int password_size = max(1, min(atoi(password_size_s), 128)) + 1;
-        unsigned int raw_password_size = (unsigned int)ceilf((float)(password_size - 1.f) * 0.75f);
-        
-        BYTE raw_password[raw_password_size];
-        
-        RAND_bytes(raw_password, raw_password_size);
-        
-        
-        // 4 characters -> 3 bytes
-        
-        BYTE password_buffer[INPUT_LIMIT];
-        BYTE password[password_size];
-        
-        EVP_EncodeBlock(password_buffer, raw_password, raw_password_size);
-        memcpy(password, password_buffer, password_size - 1);
-        password[password_size-1] = 0;
-        
-        password_block_count = (password_size + 15) / 16;
-        
-        RandomIV(iv);
-        
-        encryptedPassword = (BYTE*)malloc(password_block_count * 16);
-        password_block_count = encrypt(password, password_size, key->key, iv, encryptedPassword) / 16;
-        
-    }
-    
-    data->loginPairs = (LoginPair*)realloc(data->loginPairs, (data->pair_count + 1) * sizeof(LoginPair));
-    
-    data->loginPairs[data->pair_count].login_size = login_size;
-    data->loginPairs[data->pair_count].password_block_count = password_block_count;
-    
-    // data->loginPairs[data->pair_count].password_iv = iv;
-    memcpy(data->loginPairs[data->pair_count].password_iv, iv, 16);
-    
-    data->loginPairs[data->pair_count].login = login;
-    data->loginPairs[data->pair_count].password = encryptedPassword;
-    (data->pair_count)++;
-    
-    
-    SaveData(data, key);
-    
-}
-
-void RemoveEntry(LoginData* data, unsigned int index, Key* key){
-    free(data->loginPairs[index].login);
-    free(data->loginPairs[index].password);
-    
-    for (unsigned int i = index + 1; i < data->pair_count; i++)
-    {
-        data->loginPairs[i - 1] = data->loginPairs[i];
-    }
-    data->loginPairs = (LoginPair*)realloc(data->loginPairs, (data->pair_count - 1) * sizeof(LoginPair));
-    data->pair_count--;
-    
-    SaveData(data, key);
-}
-
-
-void ChangeEntryLogin(LoginData* data, unsigned int index, Key* key, WINDOW* w_prompt, char* prompt){
-    
-    
-    BYTE *login = (BYTE*)malloc(sizeof(BYTE) * INPUT_LIMIT);
-    unsigned int login_size;
-    
-    
-    while(1){
-        
-        char unique = 1;
-        
-        mvwprintw(w_prompt, 0, 0, prompt);
-        
-        wgetnstr(w_prompt, login, INPUT_LIMIT-1);
-        login_size = strlen(login) + 1;
-        
-        if(login_size == 1){
-            free(login);
-            return;
-        }
-        
-        for (unsigned i = 0; i < data->pair_count; i++)
-        {
-            if(!strcmp(login, data->loginPairs[i].login)){
-                mvwprintw(w_prompt, 1, 0, "Login already used.\n");
-                wgetch(w_prompt);
-                unique = 0;
-                break;
-            }   
-        }
-        
-        if(unique)
-            break;
-        
-    }
-    
-    login = realloc(login, login_size);
-    
-    free(data->loginPairs[index].login);
-    
-    data->loginPairs[index].login = login;
-    data->loginPairs[index].login_size = login_size;
-    
-    SaveData(data, key);
-}
-
-void ChangeEntryPassword(LoginData* data, unsigned int index, Key* key, WINDOW* w_prompt, char* prompt){
-    
-    unsigned short password_block_count;
-    BYTE iv[16];
-    BYTE* encryptedPassword;
-    {
-        BYTE password[INPUT_LIMIT];
-        
-        
-        mvwprintw(w_prompt, 0, 0, prompt);
-        wgetnstr(w_prompt, password, INPUT_LIMIT-1);
-        unsigned int password_size = strlen(password) + 1;
-        if(password_size == 1){
-            return;
-        }
-        password_block_count = (password_size + 15) / 16;
-        
-        RandomIV(iv);
-        
-        encryptedPassword = (BYTE*)malloc(password_block_count * 16);
-        password_block_count = encrypt(password, password_size, key->key, iv, encryptedPassword) / 16;
-    }
-    
-    
-    
-    
-    
-    free(data->loginPairs[index].password);
-    data->loginPairs[index].password = encryptedPassword;
-    data->loginPairs[index].password_block_count = password_block_count;
-    
-    memcpy(data->loginPairs[data->pair_count].password_iv, iv, 16);
-    
-    SaveData(data, key);
-}
-
-void ShowPassword(LoginData* data, unsigned int index, Key* key, int copy, WINDOW* prompt){
-    BYTE password[data->loginPairs[index].password_block_count * 16];
-    
-    decrypt(data->loginPairs[index].password, data->loginPairs[index].password_block_count * 16, key->key, data->loginPairs[index].password_iv, password);
-    
-    if(copy){
-        char command[INPUT_LIMIT];
-        sprintf(command, "printf %s | xclip -sel clip", password);
-        system(command);
-        return;
-    }
-    mvwprintw(prompt, 0, 0, "Password: %s\n", password);
-    
-    // data->loginPairs[index].password_iv = iv;
-}
-
-void ChangeVaultPassword(LoginData* data, Key* key, Key* new_key){
-    
-    for (int i = 0; i < data->pair_count; i += 1){
-        
-        BYTE password[data->loginPairs[i].password_block_count * 16];
-        decrypt(data->loginPairs[i].password, data->loginPairs[i].password_block_count * 16, key->key, data->loginPairs[i].password_iv, password);
-        unsigned short password_block_count;
-        BYTE iv[16];
-        BYTE* encryptedPassword;
-        {
-            
-            unsigned int password_size = strlen(password) + 1;
-            
-            password_block_count = (password_size + 15) / 16;
-            
-            RandomIV(iv);
-            
-            encryptedPassword = (BYTE*)malloc(password_block_count * 16);
-            password_block_count = encrypt(password, password_size, new_key->key, iv, encryptedPassword) / 16;
-        }
-        
-        free(data->loginPairs[i].password);
-        data->loginPairs[i].password = encryptedPassword;
-        data->loginPairs[i].password_block_count = password_block_count;
-        memcpy(data->loginPairs[i].password_iv, iv, 16);
-        
-    }
-    
-    SaveData(data, new_key);
-    
-}
 
 
 // returns false if decryption fails
@@ -716,7 +412,7 @@ int SaveData(LoginData* data, Key* key){
     BYTE ciphertext[((cleartext_size + 15) / 16) * 16 + 16];
     BYTE* cleartext_to_encrypt = (BYTE*)malloc(cleartext_size);
     BYTE* current_pointer = cleartext_to_encrypt;
-    //BYTE* start_pointer = current_pointer;
+    
     
     memcpy(current_pointer, &(data->pair_count), 4);
     current_pointer += 4;
@@ -732,13 +428,6 @@ int SaveData(LoginData* data, Key* key){
         memcpy(current_pointer, data->loginPairs[i].login, data->loginPairs[i].login_size);
         current_pointer += data->loginPairs[i].login_size;
     }
-    // fwrite(data->login_iv, 16, 1, file_ptr);
-    // for (unsigned int i = 0; i < data->pair_count; i++)
-    // {
-    //     fwrite(data->loginPairs[i].password, data->loginPairs[i].password_block_count * 16, 1, file_ptr);
-    //     fwrite(data->loginPairs[i].password_iv, 16, 1, file_ptr);
-    // }
-    
     
     
     for (int i = 0; i < data->pair_count; i++)
@@ -753,9 +442,6 @@ int SaveData(LoginData* data, Key* key){
     BYTE iv[16];
     BYTE mac[32] = {0};
     RandomIV(iv);
-    
-    // memcpy(current_pointer, data->main_iv, 16);
-    // current_pointer += 16;
     
     unsigned short ciphertext_block_count = encrypt(cleartext_to_encrypt, cleartext_size, key->key, iv, ciphertext) / 16;
     
@@ -782,6 +468,205 @@ int SaveData(LoginData* data, Key* key){
     free(cleartext_to_encrypt);
     return 1;
 }
+
+
+
+void CopyToClipboard(char* input){
+    
+    char command[INPUT_LIMIT];
+    sprintf(command, "printf %s | xclip -sel clip", input);
+    system(command);
+}
+
+int GetPath(char* path, char* prompt, WINDOW* w_prompt){
+    mvwprintw(w_prompt, 0, 0, prompt);
+    
+    wgetnstr(w_prompt, path, PATH_LIMIT);
+    return access(path, F_OK);
+}
+
+// returns the size of the login WITH THE NULL TERMINATOR
+unsigned int GetUniqueLogin(LoginData* data, BYTE* login, char* prompt, WINDOW* w_prompt){
+    
+    
+    login_input:
+    
+    mvwprintw(w_prompt, 0, 0, prompt);
+    wgetnstr(w_prompt, login, INPUT_LIMIT-1);
+    
+    unsigned int login_size = strlen(login) + 1;
+    
+    for (unsigned i = 0; i < data->pair_count; i++)
+    {
+        if(!strcmp(login, data->loginPairs[i].login)){
+            mvwprintw(w_prompt, 1, 0, "Login already used.\n");
+            wgetch(w_prompt);
+            goto login_input;
+        }   
+    }
+    
+    
+    return login_size;
+}
+
+// returns the size of the password WITH THE NULL TERMINATOR
+unsigned int GetPassword(BYTE* password, char* prompt, WINDOW* w_prompt){
+    
+    
+    mvwprintw(w_prompt, 0, 0, prompt);
+    wgetnstr(w_prompt, password, INPUT_LIMIT-1);
+    unsigned int password_size = strlen(password) + 1;
+    
+    
+    return password_size;
+}
+
+void RandomPassword(unsigned int password_size, BYTE* password){
+    
+    unsigned int raw_password_size = (unsigned int)ceilf((float)(password_size - 1.f) * 0.75f);
+    
+    BYTE raw_password[raw_password_size];
+    
+    RAND_bytes(raw_password, raw_password_size);
+    
+    BYTE password_buffer[INPUT_LIMIT];
+    
+    EVP_EncodeBlock(password_buffer, raw_password, raw_password_size);
+    memcpy(password, password_buffer, password_size - 1);
+    password[password_size-1] = 0;
+    
+}
+
+void GetKey(Key* key, char* prompt, WINDOW* w_prompt){
+    BYTE password[INPUT_LIMIT];
+    BYTE master_key[32];
+    mvwprintw(w_prompt, 0, 0, prompt);
+    
+    wgetnstr(w_prompt, password, INPUT_LIMIT-1);
+    
+    derive_key(password, -1, salt1, master_key, N_ITERATIONS_MASTER);
+    derive_key(master_key, 32, salt2, key->key, N_ITERATIONS_CHILD);
+    derive_key(master_key, 32, salt3, key->m_key, N_ITERATIONS_CHILD);
+    
+}
+
+
+
+void AddEntry(LoginData* data, Key* key, BYTE* login, unsigned int login_size, BYTE* password, unsigned int password_size){
+    
+    
+    BYTE* encryptedPassword;
+    BYTE iv[16];
+    unsigned short password_block_count = (password_size + 15) / 16;
+    
+    RandomIV(iv);
+    
+    encryptedPassword = (BYTE*)malloc(password_block_count * 16);
+    password_block_count = encrypt(password, password_size, key->key, iv, encryptedPassword) / 16;
+    
+    
+    data->loginPairs = (LoginPair*)realloc(data->loginPairs, (data->pair_count + 1) * sizeof(LoginPair));
+    
+    data->loginPairs[data->pair_count].login_size = login_size;
+    data->loginPairs[data->pair_count].password_block_count = password_block_count;
+    
+    // data->loginPairs[data->pair_count].password_iv = iv;
+    memcpy(data->loginPairs[data->pair_count].password_iv, iv, 16);
+    
+    data->loginPairs[data->pair_count].login = login;
+    data->loginPairs[data->pair_count].password = encryptedPassword;
+    (data->pair_count)++;
+    
+    
+    SaveData(data, key);
+    
+}
+
+void RemoveEntry(LoginData* data, unsigned int index, Key* key){
+    free(data->loginPairs[index].login);
+    free(data->loginPairs[index].password);
+    
+    for (unsigned int i = index + 1; i < data->pair_count; i++)
+    {
+        data->loginPairs[i - 1] = data->loginPairs[i];
+    }
+    data->loginPairs = (LoginPair*)realloc(data->loginPairs, (data->pair_count - 1) * sizeof(LoginPair));
+    data->pair_count--;
+    
+    SaveData(data, key);
+}
+
+void DecryptEntry(LoginData* data, unsigned int index, Key* key, BYTE* password){
+    
+    decrypt(data->loginPairs[index].password, data->loginPairs[index].password_block_count * 16, key->key, data->loginPairs[index].password_iv, password);
+}
+
+void ChangeEntryLogin(LoginData* data, unsigned int index, Key* key, BYTE* new_login, unsigned int new_login_size){
+    
+    free(data->loginPairs[index].login);
+    
+    data->loginPairs[index].login = new_login;
+    data->loginPairs[index].login_size = new_login_size;
+    
+    SaveData(data, key);
+}
+
+void ChangeEntryPassword(LoginData* data, unsigned int index, Key* key, BYTE* new_password, unsigned int new_password_size){
+    
+    unsigned short password_block_count = (new_password_size + 15) / 16;
+    BYTE iv[16];
+    BYTE* encryptedPassword;
+    
+    RandomIV(iv);
+    
+    encryptedPassword = (BYTE*)malloc(password_block_count * 16);
+    password_block_count = encrypt(new_password, new_password_size, key->key, iv, encryptedPassword) / 16;
+    
+    
+    
+    free(data->loginPairs[index].password);
+    data->loginPairs[index].password = encryptedPassword;
+    data->loginPairs[index].password_block_count = password_block_count;
+    
+    memcpy(data->loginPairs[data->pair_count].password_iv, iv, 16);
+    
+    SaveData(data, key);
+}
+
+
+void ChangeVaultPassword(LoginData* data, Key* key, Key* new_key){
+    
+    for (int i = 0; i < data->pair_count; i += 1){
+        
+        BYTE password[data->loginPairs[i].password_block_count * 16];
+        decrypt(data->loginPairs[i].password, data->loginPairs[i].password_block_count * 16, key->key, data->loginPairs[i].password_iv, password);
+        unsigned short password_block_count;
+        BYTE iv[16];
+        BYTE* encryptedPassword;
+        {
+            
+            unsigned int password_size = strlen(password) + 1;
+            
+            password_block_count = (password_size + 15) / 16;
+            
+            RandomIV(iv);
+            
+            encryptedPassword = (BYTE*)malloc(password_block_count * 16);
+            password_block_count = encrypt(password, password_size, new_key->key, iv, encryptedPassword) / 16;
+        }
+        
+        free(data->loginPairs[i].password);
+        data->loginPairs[i].password = encryptedPassword;
+        data->loginPairs[i].password_block_count = password_block_count;
+        memcpy(data->loginPairs[i].password_iv, iv, 16);
+        
+    }
+    
+    SaveData(data, new_key);
+    
+}
+
+
 
 unsigned int Menu(int height, int width, int y, int x, char** options, unsigned int options_count, unsigned int start_option){
     int curs_vis = curs_set(0);
@@ -906,7 +791,7 @@ int main(){
         // TODO(fungus): error checking
         
         vault_create:
-        if(!GetPath(&data, "Enter new vault path and name: ", prompt_window.prompt)){
+        if(!GetPath(data.path, "Enter new vault path and name: ", prompt_window.prompt)){
             
             unsigned int ans = YesOrNo(prompt_window.prompt, "File already exists. Do you want to override? (y/n)");
             if(!ans)
@@ -926,7 +811,7 @@ int main(){
             
             Key key;
             
-            GetMainPassword(&key, "Enter new vault password: ", prompt_window.prompt);
+            GetKey(&key, "Enter new vault password: ", prompt_window.prompt);
             
             
             wclear(prompt_window.prompt);
@@ -940,7 +825,7 @@ int main(){
         
     }
     else {
-        if(GetPath(&data, "Enter vault path: ", prompt_window.prompt)){
+        if(GetPath(data.path, "Enter vault path: ", prompt_window.prompt)){
             unsigned int ans = YesOrNo(prompt_window.prompt, "File does not exist. Do you want to create a new one? (y/n)");
             if(ans)
                 goto vault_create;
@@ -953,7 +838,7 @@ int main(){
             Key key;
             
             
-            GetMainPassword(&key, "Enter vault password: ", prompt_window.prompt);
+            GetKey(&key, "Enter vault password: ", prompt_window.prompt);
             wclear(prompt_window.prompt);
             wrefresh(prompt_window.prompt);
             
@@ -997,7 +882,9 @@ int main(){
     
     while(1){
         
-        last_option = Menu(data.pair_count+extra_options_count, getmaxx(stdscr)/2, getmaxy(stdscr)/2-(data.pair_count+3)/2 , getmaxx(stdscr)/2-(getmaxx(stdscr)/4), options, data.pair_count+extra_options_count, last_option);
+        last_option = Menu(data.pair_count+extra_options_count, getmaxx(stdscr)/2,
+                           getmaxy(stdscr)/2-(data.pair_count+3)/2 , getmaxx(stdscr)/2-(getmaxx(stdscr)/4),
+                           options, data.pair_count+extra_options_count, last_option);
         if(last_option < data.pair_count){
             
             pass_show:
@@ -1007,13 +894,16 @@ int main(){
                 
                 Key key;
                 
-                GetMainPassword(&key, "Enter vault password: ", prompt_window.prompt);
+                GetKey(&key, "Enter vault password: ", prompt_window.prompt);
                 
                 
                 if(!verify_key(&key, data.key_token)){
                     
                     wclear(prompt_window.prompt);
-                    ShowPassword(&data, last_option, &key, 1, prompt_window.prompt);
+                    BYTE password[data.loginPairs[last_option].password_block_count * 16];
+                    DecryptEntry(&data, last_option, &key, password);
+                    CopyToClipboard(password);
+                    
                     mvwprintw(prompt_window.prompt, 0 ,0, "Password copied to clipboard.");
                     wrefresh(prompt_window.prompt);
                 }
@@ -1035,12 +925,23 @@ int main(){
                 
                 Key key;
                 
-                GetMainPassword(&key, "Enter vault password: ", prompt_window.prompt);
+                GetKey(&key, "Enter vault password: ", prompt_window.prompt);
                 
                 
                 if(!verify_key(&key, data.key_token)){
                     wclear(prompt_window.prompt);
-                    AddEntry(&key, &data, prompt_window.prompt);
+                    
+                    BYTE* login = malloc(sizeof(BYTE) * INPUT_LIMIT); 
+                    unsigned int login_size = GetUniqueLogin(&data, login, "Enter new login: ", prompt_window.prompt);
+                    login = realloc(login, login_size);
+                    
+                    wclear(prompt_window.prompt);
+                    
+                    BYTE password[INPUT_LIMIT];
+                    unsigned int password_size = GetPassword(password, "Enter password: ", prompt_window.prompt);
+                    
+                    
+                    AddEntry(&data, &key,  login, login_size, password, password_size);
                     
                     
                     
@@ -1069,7 +970,7 @@ int main(){
             wclear(prompt_window.prompt);
             
             Key key;
-            GetMainPassword(&key, "Enter vault password: ", prompt_window.prompt);
+            GetKey(&key, "Enter vault password: ", prompt_window.prompt);
             
             
             if(!verify_key(&key, data.key_token)){
@@ -1150,7 +1051,7 @@ int main(){
             Key key;
             
             
-            GetMainPassword(&key, "Enter vault password: ", prompt_window.prompt);
+            GetKey(&key, "Enter vault password: ", prompt_window.prompt);
             
             
             if(!verify_key(&key, data.key_token)){
@@ -1190,9 +1091,20 @@ int main(){
                 else{
                     
                     wclear(prompt_window.prompt);
-                    ChangeEntryLogin(&data, to_change, &key, prompt_window.prompt, "New login (leave blank if not changing): ");
+                    
+                    BYTE* new_login = malloc(sizeof(BYTE) * INPUT_LIMIT); 
+                    unsigned int new_login_size = GetUniqueLogin(&data, new_login, "New login (leave blank if not changing): ", prompt_window.prompt);
+                    new_login = realloc(new_login, new_login_size);
+                    
                     wclear(prompt_window.prompt);
-                    ChangeEntryPassword(&data, to_change, &key, prompt_window.prompt, "New password (leave blank if not changing): ");
+                    
+                    BYTE new_password[INPUT_LIMIT];
+                    unsigned int new_password_size = GetPassword(new_password, "New password (leave blank if not changing): ", prompt_window.prompt);
+                    
+                    if(new_login_size - 1)
+                        ChangeEntryLogin(&data, to_change, &key, new_login, new_login_size);
+                    if(new_password_size - 1)
+                        ChangeEntryPassword(&data, to_change, &key, new_password, new_password_size);
                     
                     options[to_change] = data.loginPairs[to_change].login;
                     
@@ -1221,14 +1133,14 @@ int main(){
             wclear(prompt_window.prompt);
             
             Key key;
-            GetMainPassword(&key, "Enter old vault password: ", prompt_window.prompt);
+            GetKey(&key, "Enter old vault password: ", prompt_window.prompt);
             
             if(!verify_key(&key, data.key_token)){
                 
                 Key new_key;
                 
                 wclear(prompt_window.prompt);
-                GetMainPassword(&new_key, "Enter new vault password: ", prompt_window.prompt);
+                GetKey(&new_key, "Enter new vault password: ", prompt_window.prompt);
                 
                 unsigned int ans = YesOrNo(prompt_window.prompt, "Are you sure you want to change the vault's password? (y/n)");
                 
