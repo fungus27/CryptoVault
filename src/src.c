@@ -757,7 +757,7 @@ int main(){
         use_default_colors();
     }
     
-    // TODO(fungus): make better inputs, add third key for password encryption, make a 30s clipboard reset, add entry manipulation options (renaming, etc.), add option to change password, add file encryption, test, add comments, clean up code, sepertate input functions from data manipulation functions etc.
+    // TODO(fungus): make better inputs, add third key for password encryption, make a 30s clipboard reset, add file encryption, test, add comments, clean up code etc.
     
     int max_y, max_x;
     
