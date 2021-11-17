@@ -680,6 +680,7 @@ int main(){
     }
     
     // TODO(fungus): make better inputs, add third key for password encryption, make a 30s clipboard reset, add file encryption, test, add comments, clean up code etc.
+    // TODO(fungus): separate code into files
     
     int height, width;
     getmaxyx(stdscr, height, width);
