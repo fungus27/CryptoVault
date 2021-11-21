@@ -13,9 +13,6 @@
 #include "data.h"
 #include "input.h"
 
-// TODO(fungus): add dynamic salt
-byte salt_master[16] = {192, 35, 151, 175, 110, 92, 197, 128, 189, 230, 187, 4, 30, 232, 232, 187};
-
 typedef struct {
     WINDOW* border;
     WINDOW* prompt;
@@ -138,14 +135,15 @@ int main(){
             if(!ans)
                 goto first_menu;
             
+            random_salt(data.master_salt);
+            
             byte master_key[32];
             
             {
                 byte password[INPUT_LIMIT];
                 unsigned int password_size = get_password(password, "Enter new vault password: ", w_prompt.prompt);
                 
-                // TODO(fungus): add dynamic salt            V
-                derive_master_key(password, password_size, salt_master, master_key);
+                derive_master_key(password, password_size, data.master_salt, master_key);
             }
             
             key_group keys;
@@ -172,14 +170,15 @@ int main(){
         
         pass:
         {
+            load_master_salt(&data);
+            
             byte master_key[32];
             
             {
                 byte password[INPUT_LIMIT];
                 unsigned int password_size = get_password(password, "Enter vault password: ", w_prompt.prompt);
                 
-                // TODO(fungus): add dynamic salt            V
-                derive_master_key(password, password_size, salt_master, master_key);
+                derive_master_key(password, password_size, data.master_salt, master_key);
             }
             
             key_group keys;
@@ -239,8 +238,7 @@ int main(){
                     byte password[INPUT_LIMIT];
                     unsigned int password_size = get_password(password, "Enter vault password: ", w_prompt.prompt);
                     
-                    // TODO(fungus): add dynamic salt            V
-                    derive_master_key(password, password_size, salt_master, master_key);
+                    derive_master_key(password, password_size, data.master_salt, master_key);
                 }
                 
                 if(!verify_key(master_key, data.key_token)){
@@ -275,8 +273,7 @@ int main(){
                     byte password[INPUT_LIMIT];
                     unsigned int password_size = get_password(password, "Enter vault password: ", w_prompt.prompt);
                     
-                    // TODO(fungus): add dynamic salt            V
-                    derive_master_key(password, password_size, salt_master, master_key);
+                    derive_master_key(password, password_size, data.master_salt, master_key);
                 }
                 
                 if(!verify_key(master_key, data.key_token)){
@@ -332,7 +329,7 @@ int main(){
                 byte password[INPUT_LIMIT];
                 unsigned int password_size = get_password(password, "Enter vault password: ", w_prompt.prompt);
                 
-                derive_master_key(password, password_size, salt_master, master_key);
+                derive_master_key(password, password_size, data.master_salt, master_key);
             }
             
             if(!verify_key(master_key, data.key_token)){
@@ -409,7 +406,7 @@ int main(){
                 byte password[INPUT_LIMIT];
                 unsigned int password_size = get_password(password, "Enter vault password: ", w_prompt.prompt);
                 
-                derive_master_key(password, password_size, salt_master, master_key);
+                derive_master_key(password, password_size, data.master_salt, master_key);
             }
             
             if(!verify_key(master_key, data.key_token)){
@@ -487,7 +484,7 @@ int main(){
                 byte password[INPUT_LIMIT];
                 unsigned int password_size = get_password(password, "Enter old vault password: ", w_prompt.prompt);
                 
-                derive_master_key(password, password_size, salt_master, old_master_key);
+                derive_master_key(password, password_size, data.master_salt, old_master_key);
             }
             
             if(!verify_key(old_master_key, data.key_token)){
@@ -502,7 +499,7 @@ int main(){
                     byte password[INPUT_LIMIT];
                     unsigned int password_size = get_password(password, "Enter new vault password: ", w_prompt.prompt);
                     
-                    derive_master_key(password, password_size, salt_master, new_master_key);
+                    derive_master_key(password, password_size, data.master_salt, new_master_key);
                 }
                 
                 key_group new_keys;

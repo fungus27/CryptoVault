@@ -165,6 +165,10 @@ int random_iv(byte* iv){
     return RAND_bytes(iv, 16);
 }
 
+int random_salt(byte* salt){
+    return RAND_bytes(salt, 16);
+}
+
 void derive(byte* input, unsigned int input_lenght, byte* salt, byte* output, unsigned int iter){
     PKCS5_PBKDF2_HMAC(input, input_lenght, salt, 16, iter, DERIVE_FUNCTION, 32, output);
 }

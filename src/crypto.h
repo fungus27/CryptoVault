@@ -30,6 +30,7 @@ int create_hmac(byte *msg, unsigned int message_lenght, byte *val, EVP_PKEY *pke
 int verify_hmac(byte *msg, unsigned int message_lenght, byte *val, EVP_PKEY *pkey);
 
 int random_iv(byte* iv);
+int random_salt(byte* salt);
 
 void derive(byte* input, unsigned int input_lenght, byte* salt, byte* output, unsigned int iter);
 void derive_master_key(byte* password, unsigned int password_lenght, byte* salt, byte* master_key);

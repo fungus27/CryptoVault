@@ -18,11 +18,14 @@ typedef struct {
     char path[PATH_LIMIT];
     unsigned int pair_count;
     login_pair* login_pairs;
+    byte master_salt[16];
     byte key_token[EVP_MAX_MD_SIZE];
 } login_data;
 
 void initialize_data(login_data* data);
 void destroy_data(login_data* data);
+
+void load_master_salt(login_data* data);
 
 int load_data(login_data* data, key_group* keys);
 void save_data(login_data* data, key_group* keys);
