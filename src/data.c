@@ -1,8 +1,9 @@
 #include <string.h>
+#include <openssl/evp.h>
 
 #include "data.h"
 
-
+#include "crypto.h"
 
 void initialize_data(login_data* data){
     data->pair_count = 0;

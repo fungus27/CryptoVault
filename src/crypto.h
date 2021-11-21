@@ -35,6 +35,8 @@ void derive(byte* input, unsigned int input_lenght, byte* salt, byte* output, un
 void derive_master_key(byte* password, unsigned int password_lenght, byte* salt, byte* master_key);
 void derive_child_key(byte* master_key, byte* salt, byte* child_key);
 
+void get_keys(byte* master_key, key_group* keys);
+
 int verify_key(byte* master_key, byte* token);
 
 void generate_token(byte* key, byte* token);

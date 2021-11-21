@@ -11,6 +11,7 @@
 #define _DEBUG
 #include "crypto.h"
 #include "data.h"
+#include "input.h"
 
 // TODO(fungus): add dynamic salt
 byte salt_master[16] = {192, 35, 151, 175, 110, 92, 197, 128, 189, 230, 187, 4, 30, 232, 232, 187};
@@ -21,87 +22,6 @@ typedef struct {
 } prompt_window;
 
 
-
-unsigned int max(unsigned int a, unsigned int b){
-    return a > b ? a : b;
-}
-
-unsigned int min(unsigned int a, unsigned int b){
-    return a < b ? a : b;
-}
-
-
-
-void copy_to_clipboard(char* input){
-    char command[INPUT_LIMIT];
-    sprintf(command, "printf %s | xclip -sel clip", input);
-    system(command);
-}
-
-int get_path(char* path, char* prompt, WINDOW* w_prompt){
-    mvwprintw(w_prompt, 0, 0, prompt);
-    
-    wgetnstr(w_prompt, path, PATH_LIMIT);
-    return access(path, F_OK);
-}
-
-// returns the size of the login WITH THE NULL TERMINATOR
-unsigned int get_unique_login(login_data* data, byte* login, char* prompt, WINDOW* w_prompt){
-    login_input:
-    
-    mvwprintw(w_prompt, 0, 0, prompt);
-    wgetnstr(w_prompt, login, INPUT_LIMIT-1);
-    
-    unsigned int login_size = strlen(login) + 1;
-    
-    for (unsigned i = 0; i < data->pair_count; i++)
-    {
-        if(!strcmp(login, data->login_pairs[i].login)){
-            mvwprintw(w_prompt, 1, 0, "Login already used.\n");
-            wgetch(w_prompt);
-            goto login_input;
-        }   
-    }
-    
-    return login_size;
-}
-
-// returns the size of the password WITH THE NULL TERMINATOR
-unsigned int get_password(byte* password, char* prompt, WINDOW* w_prompt){
-    mvwprintw(w_prompt, 0, 0, prompt);
-    wgetnstr(w_prompt, password, INPUT_LIMIT-1);
-    unsigned int password_size = strlen(password) + 1;
-    
-    return password_size;
-}
-
-void random_password(unsigned int password_size, byte* password){
-    unsigned int raw_password_size = (unsigned int)ceilf((float)(password_size - 1) * 0.75f);
-    
-    byte raw_password[raw_password_size];
-    
-    RAND_bytes(raw_password, raw_password_size);
-    
-    byte password_buffer[INPUT_LIMIT]; // TODO(fungus): change that
-    
-    EVP_EncodeBlock(password_buffer, raw_password, raw_password_size);
-    memcpy(password, password_buffer, password_size - 1);
-    password[password_size - 1] = 0;
-}
-
-unsigned int get_uint(char* prompt, WINDOW* w_prompt){
-    char input[INPUT_LIMIT];
-    
-    mvwprintw(w_prompt, 0, 0, prompt);
-    wgetnstr(w_prompt, input, INPUT_LIMIT-1);
-    
-    return (unsigned int)min(strtoul(input, NULL, 10), UINT_MAX);
-}
-
-void get_keys(byte* master_key, key_group* keys){
-    derive_child_key(master_key, salt_enc_key, keys->enc_key);
-    derive_child_key(master_key, salt_mac_key, keys->mac_key);
-}
 
 unsigned int create_menu(int height, int width, int y, int x, char** options, unsigned int options_count, unsigned int start_option){
     int curs_vis = curs_set(0);
@@ -176,10 +96,9 @@ int main(){
         use_default_colors();
     }
     
-    // TODO(fungus): make better inputs, add third key for password encryption, make a 30s clipboard reset, add file encryption, test, add comments, change name of derive key function, clean up code etc.
-    // TODO(fungus): separate code into files, add types
-    // TODO(fungus): seperate token generation and key derivation
-    // TODO(fungus): decide how keys are passed to functions
+    // TODO(fungus): make better inputs, make a 30s clipboard reset, add file encryption, test, add comments, clean up code etc.
+    // TODO(fungus): clean up file hierarchy etc.
+    
     int height, width;
     getmaxyx(stdscr, height, width);
     

@@ -177,6 +177,11 @@ void derive_child_key(byte* master_key, byte* salt, byte* child_key){
     derive(master_key, 32, salt, child_key, N_ITERATIONS_CHILD);
 }
 
+void get_keys(byte* master_key, key_group* keys){
+    derive_child_key(master_key, salt_enc_key, keys->enc_key);
+    derive_child_key(master_key, salt_mac_key, keys->mac_key);
+}
+
 int verify_key(byte* master_key, byte* token){
     byte digest[32];
     

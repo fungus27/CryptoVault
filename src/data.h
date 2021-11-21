@@ -6,10 +6,6 @@
 #include "global_types.h"
 #include "crypto.h"
 
-// TODO(fungus): move to input file
-#define PATH_LIMIT 260
-#define INPUT_LIMIT 2048
-
 typedef struct {
     unsigned int login_size;
     unsigned short password_block_count;
@@ -24,8 +20,6 @@ typedef struct {
     login_pair* login_pairs;
     byte key_token[EVP_MAX_MD_SIZE];
 } login_data;
-
-
 
 void initialize_data(login_data* data);
 void destroy_data(login_data* data);
