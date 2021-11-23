@@ -26,8 +26,6 @@ void load_master_salt(login_data* data){
     FILE* fp;
     fp = fopen(data->path, "rb");
     
-    fseek(fp, 2, SEEK_SET);
-    
     fread(data->master_salt, 16, 1, fp);
     
     fclose(fp);
@@ -38,36 +36,34 @@ int load_data(login_data* data, key_group* keys){
     FILE* fp;
     fp = fopen(data->path, "rb");
     
-    unsigned short ciphertext_block_count;
-    fread(&(ciphertext_block_count), 2, 1, fp);
-    
-    if(!ciphertext_block_count)
-        return 0;
+    fseek(fp, 0, SEEK_END);
+    unsigned int ciphertext_size = ftell(fp) - 16 - 16 - 32;
+    rewind(fp);
     
     fread(data->master_salt, 16, 1, fp);
     
-    byte ciphertext[ciphertext_block_count * 16];
+    byte ciphertext[ciphertext_size];
     byte main_iv[16];
     byte mac[32];
-    byte message[ciphertext_block_count * 16 + 16 + 16];
-    byte* cleartext = (byte*)malloc(ciphertext_block_count * 16);
-    fread(ciphertext, ciphertext_block_count * 16, 1, fp);
+    byte message[ciphertext_size + 16 + 16];
+    byte* cleartext = (byte*)malloc(ciphertext_size);
+    fread(ciphertext, ciphertext_size, 1, fp);
     fread(main_iv, 16, 1, fp);
     fread(mac, 32, 1, fp);
     
     memcpy(message, data->master_salt, 16);
-    memcpy(message + 16, ciphertext, ciphertext_block_count * 16);
-    memcpy(message + ciphertext_block_count * 16 + 16, main_iv, 16);
+    memcpy(message + 16, ciphertext, ciphertext_size);
+    memcpy(message + ciphertext_size + 16, main_iv, 16);
     
     EVP_PKEY* mac_pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, keys->mac_key, 32);
-    if(!verify_hmac(message, ciphertext_block_count * 16 + 16, mac, mac_pkey)){
+    if(!verify_hmac(message, ciphertext_size + 16 + 16, mac, mac_pkey)){
         fclose(fp);
         free(cleartext);
         return 0;
     }
     EVP_PKEY_free(mac_pkey);
     
-    decrypt(ciphertext, ciphertext_block_count * 16, keys->enc_key, main_iv, cleartext);
+    decrypt(ciphertext, ciphertext_size, keys->enc_key, main_iv, cleartext);
     
     byte* current_pointer = cleartext;
     memcpy(&(data->pair_count), current_pointer, 4);
@@ -154,21 +150,19 @@ void save_data(login_data* data, key_group* keys){
     byte mac[32] = {0};
     random_iv(iv);
     
-    unsigned short ciphertext_block_count = encrypt(cleartext_to_encrypt, cleartext_size, keys->enc_key, iv, ciphertext) / 16;
+    unsigned int ciphertext_size = encrypt(cleartext_to_encrypt, cleartext_size, keys->enc_key, iv, ciphertext);
     
-    byte message[ciphertext_block_count * 16 + 16 + 16];
+    byte message[ciphertext_size + 16 + 16];
     memcpy(message, data->master_salt, 16);
-    memcpy(message + 16 , ciphertext, ciphertext_block_count * 16);
-    memcpy(message + ciphertext_block_count * 16 + 16, iv, 16);
+    memcpy(message + 16 , ciphertext, ciphertext_size);
+    memcpy(message + ciphertext_size + 16, iv, 16);
     
     EVP_PKEY* mac_pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, keys->mac_key, 32);
-    create_hmac(message, ciphertext_block_count * 16 + 16, mac, mac_pkey);
+    create_hmac(message, ciphertext_size + 16 + 16, mac, mac_pkey);
     EVP_PKEY_free(mac_pkey);
     
-    // TODO(fungus): remove this V
-    fwrite(&ciphertext_block_count, 2, 1, file_ptr);
     fwrite(data->master_salt, 16, 1, file_ptr);
-    fwrite(ciphertext, ciphertext_block_count * 16, 1, file_ptr);
+    fwrite(ciphertext, ciphertext_size, 1, file_ptr);
     fwrite(iv, 16, 1, file_ptr);
     fwrite(mac, 32, 1 , file_ptr);
     

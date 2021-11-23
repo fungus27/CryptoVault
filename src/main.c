@@ -95,6 +95,8 @@ int main(){
     
     // TODO(fungus): make better inputs, make a 30s clipboard reset, add file encryption, test, add comments, clean up code etc.
     // TODO(fungus): clean up file hierarchy etc.
+    // TODO(fungus): use size_t 
+    // TODO(fungus): clean up data.c functions
     
     int height, width;
     getmaxyx(stdscr, height, width);
