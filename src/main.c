@@ -14,17 +14,17 @@
 #include "input.h"
 
 typedef struct {
-    WINDOW* border;
-    WINDOW* prompt;
+    WINDOW *border;
+    WINDOW *prompt;
 } prompt_window;
 
 
 
-u32 create_menu(i32 height, i32 width, i32 y, i32 x, char** options, u32 options_count, u32 start_option){
+u32 create_menu(i32 height, i32 width, i32 y, i32 x, char **options, u32 options_count, u32 start_option){
     i32 curs_vis = curs_set(0);
     
-    WINDOW* menu_border = newwin(height + 2, width + 4, y - 1, x - 2);
-    WINDOW* menu = derwin(menu_border, height, width, 1, 2);
+    WINDOW *menu_border = newwin(height + 2, width + 4, y - 1, x - 2);
+    WINDOW *menu = derwin(menu_border, height, width, 1, 2);
     
     keypad(menu, true);
     
@@ -61,7 +61,7 @@ u32 create_menu(i32 height, i32 width, i32 y, i32 x, char** options, u32 options
 }
 
 
-u32 yes_no_prompt(char* prompt, WINDOW* w_prompt){
+u32 yes_no_prompt(char *prompt, WINDOW* w_prompt){
     noecho();
     
     wclear(w_prompt);
@@ -98,6 +98,7 @@ i32 main(){
     // TODO(fungus): use size_t 
     // TODO(fungus): use malloc instead of allocating on the stack in data.c
     // TODO(fungus): change pointer star location
+    // TODO(fungus): do error checking
     
     i32 height, width;
     getmaxyx(stdscr, height, width);
@@ -114,7 +115,7 @@ i32 main(){
     
     first_menu:
     
-    char * first_options[] = {"Create password bank", "Open password bank", "Exit"};
+    char *first_options[] = {"Create password bank", "Open password bank", "Exit"};
     u32 first_option = create_menu(3, 30, height/2-3 , width/2-17, first_options, 3, 0);
     
     if(first_option == 2){
@@ -285,7 +286,7 @@ i32 main(){
                     key_group keys;
                     get_keys(master_key, &keys);
                     
-                    byte* login = malloc(sizeof(byte) * INPUT_LIMIT); 
+                    byte *login = malloc(sizeof(byte) * INPUT_LIMIT); 
                     u32 login_size = get_unique_login(&data, login, "Enter new login: ", w_prompt.prompt);
                     login = realloc(login, login_size);
                     
@@ -449,7 +450,7 @@ i32 main(){
                 else{
                     wclear(w_prompt.prompt);
                     
-                    byte* new_login = malloc(sizeof(byte) * INPUT_LIMIT); 
+                    byte *new_login = malloc(sizeof(byte) * INPUT_LIMIT); 
                     u32 new_login_size = get_unique_login(&data, new_login, "New login (leave blank if not changing): ", w_prompt.prompt);
                     new_login = realloc(new_login, new_login_size);
                     

@@ -5,7 +5,7 @@
 
 #include "crypto.h"
 
-void initialize_data(login_data* data){
+void initialize_data(login_data *data){
     data->pair_count = 0;
     data->login_pairs = NULL;
     memset(data->key_token, 0, 32);
@@ -13,7 +13,7 @@ void initialize_data(login_data* data){
     memset(data->master_salt, 0, 16);
 }
 
-void destroy_data(login_data* data){
+void destroy_data(login_data *data){
     for (u32 i = 0; i < data->pair_count; i++)
     {
         free(data->login_pairs[i].login);
@@ -23,8 +23,8 @@ void destroy_data(login_data* data){
         free(data->login_pairs);
 }
 
-void load_master_salt(login_data* data){
-    FILE* fp;
+void load_master_salt(login_data *data){
+    FILE *fp;
     fp = fopen(data->path, "rb");
     
     fread(data->master_salt, 16, 1, fp);
@@ -33,8 +33,8 @@ void load_master_salt(login_data* data){
 }
 
 // returns false if decryption fails
-i32 load_data(login_data* data, key_group* keys){
-    FILE* fp;
+i32 load_data(login_data *data, key_group *keys){
+    FILE *fp;
     fp = fopen(data->path, "rb");
     
     fseek(fp, 0, SEEK_END);
@@ -56,17 +56,17 @@ i32 load_data(login_data* data, key_group* keys){
     memcpy(auth_message + 16, ciphertext, ciphertext_size);
     memcpy(auth_message + ciphertext_size + 16, iv, 16);
     
-    EVP_PKEY* mac_pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, keys->mac_key, 32);
+    EVP_PKEY *mac_pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, keys->mac_key, 32);
     if(!verify_hmac(auth_message, ciphertext_size + 16 + 16, mac, mac_pkey)){
         fclose(fp);
         return 0;
     }
     EVP_PKEY_free(mac_pkey);
     
-    byte* cleartext = malloc(ciphertext_size);
+    byte *cleartext = malloc(ciphertext_size);
     decrypt(ciphertext, ciphertext_size, keys->enc_key, iv, cleartext);
     
-    byte* current_pointer = cleartext;
+    byte *current_pointer = cleartext;
     memcpy(&(data->pair_count), current_pointer, 4);
     current_pointer += 4;
     
@@ -109,8 +109,8 @@ i32 load_data(login_data* data, key_group* keys){
     return 1;
 }
 
-void save_data(login_data* data, key_group* keys){
-    FILE* file_ptr;
+void save_data(login_data *data, key_group *keys){
+    FILE *file_ptr;
     file_ptr = fopen(data->path, "wb");
     
     // TODO(fungus): add metadata
@@ -122,8 +122,8 @@ void save_data(login_data* data, key_group* keys){
     }
     
     byte ciphertext[CEIL_TO_NEAREST(cleartext_size, 16) + 16];
-    byte* cleartext_to_encrypt = malloc(cleartext_size);
-    byte* current_pointer = cleartext_to_encrypt;
+    byte *cleartext_to_encrypt = malloc(cleartext_size);
+    byte *current_pointer = cleartext_to_encrypt;
     
     memcpy(current_pointer, &(data->pair_count), 4);
     current_pointer += 4;
@@ -162,7 +162,7 @@ void save_data(login_data* data, key_group* keys){
     memcpy(auth_message + ciphertext_size + 16, iv, 16);
     
     byte mac[32];
-    EVP_PKEY* mac_pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, keys->mac_key, 32);
+    EVP_PKEY *mac_pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, keys->mac_key, 32);
     create_hmac(auth_message, ciphertext_size + 32, mac, mac_pkey);
     EVP_PKEY_free(mac_pkey);
     
@@ -176,8 +176,8 @@ void save_data(login_data* data, key_group* keys){
     free(cleartext_to_encrypt);
 }
 
-void add_entry(login_data* data, key_group* keys, byte* login, u32 login_size, byte* password, u32 password_size){
-    byte* encrypted_password;
+void add_entry(login_data *data, key_group *keys, byte *login, u32 login_size, byte *password, u32 password_size){
+    byte *encrypted_password;
     byte iv[16];
     
     random_iv(iv);
@@ -199,7 +199,7 @@ void add_entry(login_data* data, key_group* keys, byte* login, u32 login_size, b
     save_data(data, keys);
 }
 
-void remove_entry(login_data* data, u32 index, key_group* keys){
+void remove_entry(login_data *data, u32 index, key_group *keys){
     free(data->login_pairs[index].login);
     free(data->login_pairs[index].password);
     
@@ -213,11 +213,11 @@ void remove_entry(login_data* data, u32 index, key_group* keys){
     save_data(data, keys);
 }
 
-void decrypt_entry(login_data* data, u32 index, key_group* keys, byte* password){
+void decrypt_entry(login_data *data, u32 index, key_group *keys, byte *password){
     decrypt(data->login_pairs[index].password, data->login_pairs[index].enc_password_size, keys->enc_key, data->login_pairs[index].password_iv, password);
 }
 
-void change_entry_login(login_data* data, u32 index, key_group* keys, byte* new_login, u32 new_login_size){
+void change_entry_login(login_data *data, u32 index, key_group *keys, byte *new_login, u32 new_login_size){
     free(data->login_pairs[index].login);
     
     data->login_pairs[index].login = new_login;
@@ -226,9 +226,9 @@ void change_entry_login(login_data* data, u32 index, key_group* keys, byte* new_
     save_data(data, keys);
 }
 
-void change_entry_password(login_data* data, u32 index, key_group* keys, byte* new_password, u32 new_password_size){
+void change_entry_password(login_data *data, u32 index, key_group *keys, byte *new_password, u32 new_password_size){
     byte iv[16];
-    byte* encrypted_password;
+    byte *encrypted_password;
     
     random_iv(iv);
     
@@ -244,13 +244,13 @@ void change_entry_password(login_data* data, u32 index, key_group* keys, byte* n
     save_data(data, keys);
 }
 
-void change_vault_password(login_data* data, key_group* old_keys, key_group* new_keys){
+void change_vault_password(login_data *data, key_group *old_keys, key_group *new_keys){
     for (u32 i = 0; i < data->pair_count; i += 1){
         byte password[data->login_pairs[i].enc_password_size];
         decrypt(data->login_pairs[i].password, data->login_pairs[i].enc_password_size, old_keys->enc_key, data->login_pairs[i].password_iv, password);
         
         byte iv[16];
-        byte* encrypted_password;
+        byte *encrypted_password;
         
         u32 password_size = strlen(password) + 1;
         u32 enc_password_size = CEIL_TO_NEAREST(password_size, 16) + 16;

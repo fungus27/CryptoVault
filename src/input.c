@@ -8,13 +8,13 @@
 #include "global_types.h"
 #include "data.h"
 
-void copy_to_clipboard(char* input){
+void copy_to_clipboard(char *input){
     char command[INPUT_LIMIT];
     sprintf(command, "printf %s | xclip -sel clip", input);
     system(command);
 }
 
-i32 get_path(char* path, char* prompt, WINDOW* w_prompt){
+i32 get_path(char *path, char *prompt, WINDOW *w_prompt){
     mvwprintw(w_prompt, 0, 0, prompt);
     
     wgetnstr(w_prompt, path, PATH_LIMIT);
@@ -22,7 +22,7 @@ i32 get_path(char* path, char* prompt, WINDOW* w_prompt){
 }
 
 // returns the size of the login WITH THE NULL TERMINATOR
-u32 get_unique_login(login_data* data, byte* login, char* prompt, WINDOW* w_prompt){
+u32 get_unique_login(login_data *data, byte *login, char *prompt, WINDOW *w_prompt){
     login_input:
     
     mvwprintw(w_prompt, 0, 0, prompt);
@@ -43,7 +43,7 @@ u32 get_unique_login(login_data* data, byte* login, char* prompt, WINDOW* w_prom
 }
 
 // returns the size of the password WITH THE NULL TERMINATOR
-u32 get_password(byte* password, char* prompt, WINDOW* w_prompt){
+u32 get_password(byte *password, char *prompt, WINDOW *w_prompt){
     mvwprintw(w_prompt, 0, 0, prompt);
     wgetnstr(w_prompt, password, INPUT_LIMIT-1);
     u32 password_size = strlen(password) + 1;
@@ -51,7 +51,7 @@ u32 get_password(byte* password, char* prompt, WINDOW* w_prompt){
     return password_size;
 }
 
-u32 get_uint(char* prompt, WINDOW* w_prompt){
+u32 get_uint(char *prompt, WINDOW *w_prompt){
     char input[INPUT_LIMIT];
     
     mvwprintw(w_prompt, 0, 0, prompt);
@@ -60,7 +60,7 @@ u32 get_uint(char* prompt, WINDOW* w_prompt){
     return (u32)MIN(strtoul(input, NULL, 10), UINT_MAX);
 }
 
-void random_password(u32 password_size, byte* password){
+void random_password(u32 password_size, byte *password){
     u32 raw_password_size = (u32)ceilf((float)(password_size - 1) * 0.75f);
     
     byte raw_password[raw_password_size];

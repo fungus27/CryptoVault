@@ -161,32 +161,32 @@ i32 verify_hmac(byte *msg, u32 message_lenght, byte *val, EVP_PKEY *pkey){
     return result;
 }
 
-i32 random_iv(byte* iv){
+i32 random_iv(byte *iv){
     return RAND_bytes(iv, 16);
 }
 
-i32 random_salt(byte* salt){
+i32 random_salt(byte *salt){
     return RAND_bytes(salt, 16);
 }
 
-void derive(byte* input, u32 input_lenght, byte* salt, byte* output, u32 iter){
+void derive(byte *input, u32 input_lenght, byte *salt, byte *output, u32 iter){
     PKCS5_PBKDF2_HMAC(input, input_lenght, salt, 16, iter, DERIVE_FUNCTION, 32, output);
 }
 
-void derive_master_key(byte* password, u32 password_lenght, byte* salt, byte* master_key){
+void derive_master_key(byte *password, u32 password_lenght, byte *salt, byte *master_key){
     derive(password, password_lenght, salt, master_key, N_ITERATIONS_MASTER);
 }
 
-void derive_child_key(byte* master_key, byte* salt, byte* child_key){
+void derive_child_key(byte *master_key, byte *salt, byte *child_key){
     derive(master_key, 32, salt, child_key, N_ITERATIONS_CHILD);
 }
 
-void get_keys(byte* master_key, key_group* keys){
+void get_keys(byte *master_key, key_group *keys){
     derive_child_key(master_key, salt_enc_key, keys->enc_key);
     derive_child_key(master_key, salt_mac_key, keys->mac_key);
 }
 
-i32 verify_key(byte* master_key, byte* token){
+i32 verify_key(byte *master_key, byte *token){
     byte digest[32];
     
     generate_token(master_key, digest);
@@ -194,6 +194,6 @@ i32 verify_key(byte* master_key, byte* token){
     return CRYPTO_memcmp(digest, token, 32);
 }
 
-void generate_token(byte* master_key, byte* token){
+void generate_token(byte *master_key, byte *token){
     derive(master_key, 32, salt_token, token ,N_ITERATIONS_TOKEN);
 }

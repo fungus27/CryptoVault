@@ -29,17 +29,17 @@ u32 decrypt(byte *ciphertext, u32 ciphertext_len, byte *key, byte *iv, byte *pla
 i32 create_hmac(byte *msg, u32 message_lenght, byte *val, EVP_PKEY *pkey);
 i32 verify_hmac(byte *msg, u32 message_lenght, byte *val, EVP_PKEY *pkey);
 
-i32 random_iv(byte* iv);
-i32 random_salt(byte* salt);
+i32 random_iv(byte *iv);
+i32 random_salt(byte *salt);
 
-void derive(byte* input, u32 input_lenght, byte* salt, byte* output, u32 iter);
-void derive_master_key(byte* password, u32 password_lenght, byte* salt, byte* master_key);
-void derive_child_key(byte* master_key, byte* salt, byte* child_key);
+void derive(byte *input, u32 input_lenght, byte *salt, byte *output, u32 iter);
+void derive_master_key(byte *password, u32 password_lenght, byte *salt, byte *master_key);
+void derive_child_key(byte *master_key, byte *salt, byte *child_key);
 
-void get_keys(byte* master_key, key_group* keys);
+void get_keys(byte *master_key, key_group *keys);
 
-i32 verify_key(byte* master_key, byte* token);
+i32 verify_key(byte *master_key, byte *token);
 
-void generate_token(byte* key, byte* token);
+void generate_token(byte *key, byte *token);
 
 #endif //CRYPTO_H
