@@ -6,7 +6,11 @@
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) < (b) ? (b) : (a))
+#define CEIL_TO_NEAREST(a, b) ((((a) + (b) - 1)/(b)) * (b))
 
 typedef unsigned char byte;
+
+typedef unsigned int u32;
+typedef int i32;
 
 #endif //GLOBAL_TYPES_H

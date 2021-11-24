@@ -10,10 +10,11 @@ void initialize_data(login_data* data){
     data->login_pairs = NULL;
     memset(data->key_token, 0, 32);
     memset(data->path, 0, PATH_LIMIT);
+    memset(data->master_salt, 0, 16);
 }
 
 void destroy_data(login_data* data){
-    for (unsigned int i = 0; i < data->pair_count; i++)
+    for (u32 i = 0; i < data->pair_count; i++)
     {
         free(data->login_pairs[i].login);
         free(data->login_pairs[i].password);
@@ -32,38 +33,38 @@ void load_master_salt(login_data* data){
 }
 
 // returns false if decryption fails
-int load_data(login_data* data, key_group* keys){
+i32 load_data(login_data* data, key_group* keys){
     FILE* fp;
     fp = fopen(data->path, "rb");
     
     fseek(fp, 0, SEEK_END);
-    unsigned int ciphertext_size = ftell(fp) - 16 - 16 - 32;
+    u32 ciphertext_size = ftell(fp) - 64;/* master_salt + iv + mac */
     rewind(fp);
     
     fread(data->master_salt, 16, 1, fp);
     
     byte ciphertext[ciphertext_size];
-    byte main_iv[16];
+    byte iv[16];
     byte mac[32];
-    byte message[ciphertext_size + 16 + 16];
-    byte* cleartext = (byte*)malloc(ciphertext_size);
+    
     fread(ciphertext, ciphertext_size, 1, fp);
-    fread(main_iv, 16, 1, fp);
+    fread(iv, 16, 1, fp);
     fread(mac, 32, 1, fp);
     
-    memcpy(message, data->master_salt, 16);
-    memcpy(message + 16, ciphertext, ciphertext_size);
-    memcpy(message + ciphertext_size + 16, main_iv, 16);
+    byte auth_message[ciphertext_size + 32];
+    memcpy(auth_message, data->master_salt, 16);
+    memcpy(auth_message + 16, ciphertext, ciphertext_size);
+    memcpy(auth_message + ciphertext_size + 16, iv, 16);
     
     EVP_PKEY* mac_pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, keys->mac_key, 32);
-    if(!verify_hmac(message, ciphertext_size + 16 + 16, mac, mac_pkey)){
+    if(!verify_hmac(auth_message, ciphertext_size + 16 + 16, mac, mac_pkey)){
         fclose(fp);
-        free(cleartext);
         return 0;
     }
     EVP_PKEY_free(mac_pkey);
     
-    decrypt(ciphertext, ciphertext_size, keys->enc_key, main_iv, cleartext);
+    byte* cleartext = malloc(ciphertext_size);
+    decrypt(ciphertext, ciphertext_size, keys->enc_key, iv, cleartext);
     
     byte* current_pointer = cleartext;
     memcpy(&(data->pair_count), current_pointer, 4);
@@ -73,32 +74,32 @@ int load_data(login_data* data, key_group* keys){
     // time (4 bytes) number of iv generations (4 bytes) something else (8 bytes)
     current_pointer += 4 + 4 + 8;
     
-    data->login_pairs = (login_pair*)malloc(sizeof(login_pair) * data->pair_count);
-    for (unsigned int i = 0; i < data->pair_count; i++)
+    data->login_pairs = malloc(sizeof(login_pair) * data->pair_count);
+    for (u32 i = 0; i < data->pair_count; i++)
     {
-        unsigned int login_size;
-        unsigned short password_block_count; // 128-bit blocks (16 byte)
+        u32 login_size;
+        u32 enc_password_size; // 128-bit blocks (16 byte)
         
         memcpy(&login_size, current_pointer, 4);
-        
         current_pointer += 4;
-        memcpy(&password_block_count, current_pointer, 2);
-        current_pointer += 2;
+        
+        memcpy(&enc_password_size, current_pointer, 4);
+        current_pointer += 4;
         
         data->login_pairs[i].login_size = login_size;
-        data->login_pairs[i].password_block_count = password_block_count;
-        data->login_pairs[i].login = (byte*)malloc(login_size);
-        data->login_pairs[i].password = (byte*)malloc(password_block_count * 16);
+        data->login_pairs[i].enc_password_size = enc_password_size;
+        data->login_pairs[i].login = malloc(login_size);
+        data->login_pairs[i].password = malloc(enc_password_size);
         
         memcpy(data->login_pairs[i].login, current_pointer, login_size);
         current_pointer += login_size;
-        
     }
     
-    for (int i = 0; i < data->pair_count; i++)
+    for (i32 i = 0; i < data->pair_count; i++)
     {
-        memcpy(data->login_pairs[i].password, current_pointer, data->login_pairs[i].password_block_count * 16);
-        current_pointer += data->login_pairs[i].password_block_count * 16;
+        memcpy(data->login_pairs[i].password, current_pointer, data->login_pairs[i].enc_password_size);
+        current_pointer += data->login_pairs[i].enc_password_size;
+        
         memcpy(data->login_pairs[i].password_iv, current_pointer, 16);
         current_pointer += 16;
     }
@@ -114,13 +115,14 @@ void save_data(login_data* data, key_group* keys){
     
     // TODO(fungus): add metadata
     // time (4 bytes) number of iv generations (4 bytes) something else (8 bytes)
-    unsigned int cleartext_size = sizeof(data->pair_count) + 4 + 4 + 8;
-    for (int i = 0; i < data->pair_count; i++)
+    u32 cleartext_size = sizeof(data->pair_count) + 4 + 4 + 8;
+    for (i32 i = 0; i < data->pair_count; i++)
     {
-        cleartext_size += sizeof(unsigned int) + sizeof(unsigned short) + data->login_pairs[i].login_size + data->login_pairs[i].password_block_count * 16 + 16;
+        cleartext_size += sizeof(data->login_pairs[i].login_size) + sizeof(data->login_pairs[i].enc_password_size) + data->login_pairs[i].login_size + data->login_pairs[i].enc_password_size + 16;
     }
-    byte ciphertext[((cleartext_size + 15) / 16) * 16 + 16];
-    byte* cleartext_to_encrypt = (byte*)malloc(cleartext_size);
+    
+    byte ciphertext[CEIL_TO_NEAREST(cleartext_size, 16) + 16];
+    byte* cleartext_to_encrypt = malloc(cleartext_size);
     byte* current_pointer = cleartext_to_encrypt;
     
     memcpy(current_pointer, &(data->pair_count), 4);
@@ -128,77 +130,80 @@ void save_data(login_data* data, key_group* keys){
     
     current_pointer += 4 + 4 + 8;
     
-    for (unsigned int i = 0; i < data->pair_count; i++)
+    for (u32 i = 0; i < data->pair_count; i++)
     {
         memcpy(current_pointer, &(data->login_pairs[i].login_size), 4);
         current_pointer += 4;
-        memcpy(current_pointer, &(data->login_pairs[i].password_block_count), 2);
-        current_pointer += 2;
+        
+        memcpy(current_pointer, &(data->login_pairs[i].enc_password_size), 4);
+        current_pointer += 4;
+        
         memcpy(current_pointer, data->login_pairs[i].login, data->login_pairs[i].login_size);
         current_pointer += data->login_pairs[i].login_size;
     }
     
-    for (int i = 0; i < data->pair_count; i++)
+    for (u32 i = 0; i < data->pair_count; i++)
     {
-        memcpy(current_pointer, data->login_pairs[i].password, data->login_pairs[i].password_block_count * 16);
-        current_pointer += data->login_pairs[i].password_block_count * 16;
+        memcpy(current_pointer, data->login_pairs[i].password, data->login_pairs[i].enc_password_size);
+        current_pointer += data->login_pairs[i].enc_password_size;
+        
         memcpy(current_pointer, data->login_pairs[i].password_iv, 16);
         current_pointer += 16;
     }
     
     byte iv[16];
-    byte mac[32] = {0};
     random_iv(iv);
     
-    unsigned int ciphertext_size = encrypt(cleartext_to_encrypt, cleartext_size, keys->enc_key, iv, ciphertext);
+    u32 ciphertext_size = encrypt(cleartext_to_encrypt, cleartext_size, keys->enc_key, iv, ciphertext);
     
-    byte message[ciphertext_size + 16 + 16];
-    memcpy(message, data->master_salt, 16);
-    memcpy(message + 16 , ciphertext, ciphertext_size);
-    memcpy(message + ciphertext_size + 16, iv, 16);
+    byte auth_message[ciphertext_size + 32];
+    memcpy(auth_message, data->master_salt, 16);
+    memcpy(auth_message + 16 , ciphertext, ciphertext_size);
+    memcpy(auth_message + ciphertext_size + 16, iv, 16);
     
+    byte mac[32];
     EVP_PKEY* mac_pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, keys->mac_key, 32);
-    create_hmac(message, ciphertext_size + 16 + 16, mac, mac_pkey);
+    create_hmac(auth_message, ciphertext_size + 32, mac, mac_pkey);
     EVP_PKEY_free(mac_pkey);
     
     fwrite(data->master_salt, 16, 1, file_ptr);
     fwrite(ciphertext, ciphertext_size, 1, file_ptr);
     fwrite(iv, 16, 1, file_ptr);
+    
     fwrite(mac, 32, 1 , file_ptr);
     
     fclose(file_ptr);
     free(cleartext_to_encrypt);
 }
 
-void add_entry(login_data* data, key_group* keys, byte* login, unsigned int login_size, byte* password, unsigned int password_size){
-    byte* encryptedPassword;
+void add_entry(login_data* data, key_group* keys, byte* login, u32 login_size, byte* password, u32 password_size){
+    byte* encrypted_password;
     byte iv[16];
-    unsigned short password_block_count = (password_size + 15) / 16;
     
     random_iv(iv);
     
-    encryptedPassword = (byte*)malloc(password_block_count * 16);
-    password_block_count = encrypt(password, password_size, keys->enc_key, iv, encryptedPassword) / 16;
+    encrypted_password = malloc(CEIL_TO_NEAREST(password_size, 16) + 16);
+    u32 enc_password_size = encrypt(password, password_size, keys->enc_key, iv, encrypted_password);
     
     data->login_pairs = (login_pair*)realloc(data->login_pairs, (data->pair_count + 1) * sizeof(login_pair));
     
     data->login_pairs[data->pair_count].login_size = login_size;
-    data->login_pairs[data->pair_count].password_block_count = password_block_count;
+    data->login_pairs[data->pair_count].enc_password_size = enc_password_size;
     
     memcpy(data->login_pairs[data->pair_count].password_iv, iv, 16);
     
     data->login_pairs[data->pair_count].login = login;
-    data->login_pairs[data->pair_count].password = encryptedPassword;
+    data->login_pairs[data->pair_count].password = encrypted_password;
     (data->pair_count)++;
     
     save_data(data, keys);
 }
 
-void remove_entry(login_data* data, unsigned int index, key_group* keys){
+void remove_entry(login_data* data, u32 index, key_group* keys){
     free(data->login_pairs[index].login);
     free(data->login_pairs[index].password);
     
-    for (unsigned int i = index + 1; i < data->pair_count; i++)
+    for (u32 i = index + 1; i < data->pair_count; i++)
     {
         data->login_pairs[i - 1] = data->login_pairs[i];
     }
@@ -208,11 +213,11 @@ void remove_entry(login_data* data, unsigned int index, key_group* keys){
     save_data(data, keys);
 }
 
-void decrypt_entry(login_data* data, unsigned int index, key_group* keys, byte* password){
-    decrypt(data->login_pairs[index].password, data->login_pairs[index].password_block_count * 16, keys->enc_key, data->login_pairs[index].password_iv, password);
+void decrypt_entry(login_data* data, u32 index, key_group* keys, byte* password){
+    decrypt(data->login_pairs[index].password, data->login_pairs[index].enc_password_size, keys->enc_key, data->login_pairs[index].password_iv, password);
 }
 
-void change_entry_login(login_data* data, unsigned int index, key_group* keys, byte* new_login, unsigned int new_login_size){
+void change_entry_login(login_data* data, u32 index, key_group* keys, byte* new_login, u32 new_login_size){
     free(data->login_pairs[index].login);
     
     data->login_pairs[index].login = new_login;
@@ -221,19 +226,18 @@ void change_entry_login(login_data* data, unsigned int index, key_group* keys, b
     save_data(data, keys);
 }
 
-void change_entry_password(login_data* data, unsigned int index, key_group* keys, byte* new_password, unsigned int new_password_size){
-    unsigned short password_block_count = (new_password_size + 15) / 16;
+void change_entry_password(login_data* data, u32 index, key_group* keys, byte* new_password, u32 new_password_size){
     byte iv[16];
-    byte* encryptedPassword;
+    byte* encrypted_password;
     
     random_iv(iv);
     
-    encryptedPassword = (byte*)malloc(password_block_count * 16);
-    password_block_count = encrypt(new_password, new_password_size, keys, iv, encryptedPassword) / 16;
+    encrypted_password = malloc(CEIL_TO_NEAREST(new_password_size, 16) + 16);
+    u32 enc_password_size = encrypt(new_password, new_password_size, keys, iv, encrypted_password);
     
     free(data->login_pairs[index].password);
-    data->login_pairs[index].password = encryptedPassword;
-    data->login_pairs[index].password_block_count = password_block_count;
+    data->login_pairs[index].password = encrypted_password;
+    data->login_pairs[index].enc_password_size = enc_password_size;
     
     memcpy(data->login_pairs[data->pair_count].password_iv, iv, 16);
     
@@ -241,26 +245,24 @@ void change_entry_password(login_data* data, unsigned int index, key_group* keys
 }
 
 void change_vault_password(login_data* data, key_group* old_keys, key_group* new_keys){
-    for (int i = 0; i < data->pair_count; i += 1){
-        byte password[data->login_pairs[i].password_block_count * 16];
-        decrypt(data->login_pairs[i].password, data->login_pairs[i].password_block_count * 16, old_keys->enc_key, data->login_pairs[i].password_iv, password);
+    for (u32 i = 0; i < data->pair_count; i += 1){
+        byte password[data->login_pairs[i].enc_password_size];
+        decrypt(data->login_pairs[i].password, data->login_pairs[i].enc_password_size, old_keys->enc_key, data->login_pairs[i].password_iv, password);
         
         byte iv[16];
-        byte* encryptedPassword;
-        unsigned short password_block_count;
-        {
-            unsigned int password_size = strlen(password) + 1;
-            password_block_count = (password_size + 15) / 16;
-            
-            random_iv(iv);
-            
-            encryptedPassword = (byte*)malloc(password_block_count * 16);
-            password_block_count = encrypt(password, password_size, new_keys->enc_key, iv, encryptedPassword) / 16;
-        }
+        byte* encrypted_password;
+        
+        u32 password_size = strlen(password) + 1;
+        u32 enc_password_size = CEIL_TO_NEAREST(password_size, 16) + 16;
+        
+        random_iv(iv);
+        
+        encrypted_password = malloc(enc_password_size);
+        enc_password_size = encrypt(password, password_size, new_keys->enc_key, iv, encrypted_password);
         
         free(data->login_pairs[i].password);
-        data->login_pairs[i].password = encryptedPassword;
-        data->login_pairs[i].password_block_count = password_block_count;
+        data->login_pairs[i].password = encrypted_password;
+        data->login_pairs[i].enc_password_size = enc_password_size;
         memcpy(data->login_pairs[i].password_iv, iv, 16);
     }
     

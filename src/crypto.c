@@ -33,10 +33,10 @@ void finalize(){
     ERR_free_strings();
 }
 
-unsigned int encrypt(byte *plaintext, unsigned int plaintext_len, byte *key, byte *iv, byte *ciphertext){
+u32 encrypt(byte *plaintext, u32 plaintext_len, byte *key, byte *iv, byte *ciphertext){
     EVP_CIPHER_CTX *ctx;
-    unsigned int len;
-    unsigned int ciphertext_len;
+    u32 len;
+    u32 ciphertext_len;
     
     if(!(ctx = EVP_CIPHER_CTX_new()))
         handle_errors();
@@ -58,12 +58,12 @@ unsigned int encrypt(byte *plaintext, unsigned int plaintext_len, byte *key, byt
     return ciphertext_len;
 }
 
-unsigned int decrypt(byte *ciphertext, unsigned int ciphertext_len, byte *key, byte *iv, byte *plaintext){
+u32 decrypt(byte *ciphertext, u32 ciphertext_len, byte *key, byte *iv, byte *plaintext){
     EVP_CIPHER_CTX *ctx;
     
-    unsigned int len;
+    u32 len;
     
-    unsigned int plaintext_len;
+    u32 plaintext_len;
     
     /* Create and initialise the context */
     if(!(ctx = EVP_CIPHER_CTX_new()))
@@ -86,12 +86,12 @@ unsigned int decrypt(byte *ciphertext, unsigned int ciphertext_len, byte *key, b
     return plaintext_len;
 }
 
-int create_hmac(byte *msg, unsigned int message_lenght, byte *val, EVP_PKEY *pkey){
+i32 create_hmac(byte *msg, u32 message_lenght, byte *val, EVP_PKEY *pkey){
     /* Returned to caller */
-    int result = 0;
+    i32 result = 0;
     EVP_MD_CTX* ctx = NULL;
     size_t req = 0;
-    int rc;
+    i32 rc;
     
     ctx = EVP_MD_CTX_new();
     if (ctx == NULL) {
@@ -126,13 +126,13 @@ int create_hmac(byte *msg, unsigned int message_lenght, byte *val, EVP_PKEY *pke
     return result;
 }
 
-int verify_hmac(byte *msg, unsigned int message_lenght, byte *val, EVP_PKEY *pkey){
+i32 verify_hmac(byte *msg, u32 message_lenght, byte *val, EVP_PKEY *pkey){
     /* Returned to caller */
-    int result = 0;
+    i32 result = 0;
     EVP_MD_CTX* ctx = NULL;
     byte buff[32];
     size_t size;
-    int rc;
+    i32 rc;
     
     ctx = EVP_MD_CTX_new();
     if (ctx == NULL) {
@@ -161,19 +161,19 @@ int verify_hmac(byte *msg, unsigned int message_lenght, byte *val, EVP_PKEY *pke
     return result;
 }
 
-int random_iv(byte* iv){
+i32 random_iv(byte* iv){
     return RAND_bytes(iv, 16);
 }
 
-int random_salt(byte* salt){
+i32 random_salt(byte* salt){
     return RAND_bytes(salt, 16);
 }
 
-void derive(byte* input, unsigned int input_lenght, byte* salt, byte* output, unsigned int iter){
+void derive(byte* input, u32 input_lenght, byte* salt, byte* output, u32 iter){
     PKCS5_PBKDF2_HMAC(input, input_lenght, salt, 16, iter, DERIVE_FUNCTION, 32, output);
 }
 
-void derive_master_key(byte* password, unsigned int password_lenght, byte* salt, byte* master_key){
+void derive_master_key(byte* password, u32 password_lenght, byte* salt, byte* master_key){
     derive(password, password_lenght, salt, master_key, N_ITERATIONS_MASTER);
 }
 
@@ -186,7 +186,7 @@ void get_keys(byte* master_key, key_group* keys){
     derive_child_key(master_key, salt_mac_key, keys->mac_key);
 }
 
-int verify_key(byte* master_key, byte* token){
+i32 verify_key(byte* master_key, byte* token){
     byte digest[32];
     
     generate_token(master_key, digest);
