@@ -185,7 +185,7 @@ void add_entry(login_data *data, key_group *keys, byte *login, u32 login_size, b
     encrypted_password = malloc(CEIL_TO_NEAREST(password_size, 16) + 16);
     u32 enc_password_size = encrypt(password, password_size, keys->enc_key, iv, encrypted_password);
     
-    data->login_pairs = (login_pair*)realloc(data->login_pairs, (data->pair_count + 1) * sizeof(login_pair));
+    data->login_pairs = realloc(data->login_pairs, (data->pair_count + 1) * sizeof(login_pair));
     
     data->login_pairs[data->pair_count].login_size = login_size;
     data->login_pairs[data->pair_count].enc_password_size = enc_password_size;
@@ -207,7 +207,7 @@ void remove_entry(login_data *data, u32 index, key_group *keys){
     {
         data->login_pairs[i - 1] = data->login_pairs[i];
     }
-    data->login_pairs = (login_pair*)realloc(data->login_pairs, (data->pair_count - 1) * sizeof(login_pair));
+    data->login_pairs = realloc(data->login_pairs, (data->pair_count - 1) * sizeof(login_pair));
     data->pair_count--;
     
     save_data(data, keys);

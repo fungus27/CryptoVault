@@ -318,7 +318,7 @@ i32 main(){
                 }
             }
             
-            options = (char**)realloc(options, sizeof(char*) * (data.pair_count+extra_options_count));
+            options = realloc(options, sizeof(char*) * (data.pair_count+extra_options_count));
             
             options[data.pair_count-1] = data.login_pairs[data.pair_count-1].login; 
             memcpy(&options[data.pair_count], extra_options, extra_options_count * sizeof(char*));
@@ -393,7 +393,7 @@ i32 main(){
                     goto pass_rem_enter;
             }
             
-            options = (char**)realloc(options, sizeof(char*) * (data.pair_count+extra_options_count));
+            options = realloc(options, sizeof(char*) * (data.pair_count+extra_options_count));
             for(i32 i = 0; i < data.pair_count; ++i){
                 options[i] = data.login_pairs[i].login;
             }
