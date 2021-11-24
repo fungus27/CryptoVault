@@ -93,12 +93,11 @@ i32 main(){
         use_default_colors();
     }
     
-    // TODO(fungus): make better inputs, make a 30s clipboard reset, add file encryption, test, add comments, clean up code etc.
+    // TODO(fungus): make better inputs, make a 30s clipboard reset, add file encryption, test, add comments, clean up code, do a complete menu look overhaul, etc.
     // TODO(fungus): clean up file hierarchy etc.
     // TODO(fungus): use size_t 
-    // TODO(fungus): use malloc instead of allocating on the stack in data.c
-    // TODO(fungus): change pointer star location
     // TODO(fungus): do error checking
+    // TODO(fungus): clear prompt exactly after getting input
     
     i32 height, width;
     getmaxyx(stdscr, height, width);

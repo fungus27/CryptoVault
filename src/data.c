@@ -38,12 +38,12 @@ i32 load_data(login_data *data, key_group *keys){
     fp = fopen(data->path, "rb");
     
     fseek(fp, 0, SEEK_END);
-    u32 ciphertext_size = ftell(fp) - 64;/* master_salt + iv + mac */
+    u32 ciphertext_size = ftell(fp) - 64; /* master_salt + iv + mac */
     rewind(fp);
     
     fread(data->master_salt, 16, 1, fp);
     
-    byte ciphertext[ciphertext_size];
+    byte *ciphertext = malloc(ciphertext_size);
     byte iv[16];
     byte mac[32];
     
@@ -51,17 +51,21 @@ i32 load_data(login_data *data, key_group *keys){
     fread(iv, 16, 1, fp);
     fread(mac, 32, 1, fp);
     
-    byte auth_message[ciphertext_size + 32];
+    byte *auth_message = malloc(ciphertext_size + 32);
     memcpy(auth_message, data->master_salt, 16);
     memcpy(auth_message + 16, ciphertext, ciphertext_size);
     memcpy(auth_message + ciphertext_size + 16, iv, 16);
     
     EVP_PKEY *mac_pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, keys->mac_key, 32);
     if(!verify_hmac(auth_message, ciphertext_size + 16 + 16, mac, mac_pkey)){
+        free(auth_message);
+        free(ciphertext);
         fclose(fp);
+        
         return 0;
     }
     EVP_PKEY_free(mac_pkey);
+    free(auth_message);
     
     byte *cleartext = malloc(ciphertext_size);
     decrypt(ciphertext, ciphertext_size, keys->enc_key, iv, cleartext);
@@ -104,8 +108,10 @@ i32 load_data(login_data *data, key_group *keys){
         current_pointer += 16;
     }
     
-    fclose(fp);
+    free(ciphertext);
     free(cleartext);
+    fclose(fp);
+    
     return 1;
 }
 
@@ -121,9 +127,8 @@ void save_data(login_data *data, key_group *keys){
         cleartext_size += sizeof(data->login_pairs[i].login_size) + sizeof(data->login_pairs[i].enc_password_size) + data->login_pairs[i].login_size + data->login_pairs[i].enc_password_size + 16;
     }
     
-    byte ciphertext[CEIL_TO_NEAREST(cleartext_size, 16) + 16];
-    byte *cleartext_to_encrypt = malloc(cleartext_size);
-    byte *current_pointer = cleartext_to_encrypt;
+    byte *cleartext = malloc(cleartext_size);
+    byte *current_pointer = cleartext;
     
     memcpy(current_pointer, &(data->pair_count), 4);
     current_pointer += 4;
@@ -154,9 +159,12 @@ void save_data(login_data *data, key_group *keys){
     byte iv[16];
     random_iv(iv);
     
-    u32 ciphertext_size = encrypt(cleartext_to_encrypt, cleartext_size, keys->enc_key, iv, ciphertext);
+    byte *ciphertext = malloc(CEIL_TO_NEAREST(cleartext_size, 16) + 16);
+    u32 ciphertext_size = encrypt(cleartext, cleartext_size, keys->enc_key, iv, ciphertext);
     
-    byte auth_message[ciphertext_size + 32];
+    free(cleartext);
+    
+    byte *auth_message = malloc(ciphertext_size + 32);
     memcpy(auth_message, data->master_salt, 16);
     memcpy(auth_message + 16 , ciphertext, ciphertext_size);
     memcpy(auth_message + ciphertext_size + 16, iv, 16);
@@ -165,15 +173,15 @@ void save_data(login_data *data, key_group *keys){
     EVP_PKEY *mac_pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, keys->mac_key, 32);
     create_hmac(auth_message, ciphertext_size + 32, mac, mac_pkey);
     EVP_PKEY_free(mac_pkey);
+    free(auth_message);
     
     fwrite(data->master_salt, 16, 1, file_ptr);
     fwrite(ciphertext, ciphertext_size, 1, file_ptr);
     fwrite(iv, 16, 1, file_ptr);
-    
     fwrite(mac, 32, 1 , file_ptr);
     
+    free(ciphertext);
     fclose(file_ptr);
-    free(cleartext_to_encrypt);
 }
 
 void add_entry(login_data *data, key_group *keys, byte *login, u32 login_size, byte *password, u32 password_size){
