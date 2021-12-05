@@ -97,12 +97,10 @@ i32 main(){
     // TODO(fungus): clean up file hierarchy etc.
     // TODO(fungus): use size_t 
     // TODO(fungus): do error checking
-    // TODO(fungus): remove goto's <-
     // TODO(fungus): stop yes or no function from refreshing
     // TODO(fungus): minimize prompt refreshing
     // TODO(fungus): fix warnings
     // TODO(fungus): (maybe) use do while loops
-    // TODO(fungus): shorten yes or no
     
     i32 height, width;
     getmaxyx(stdscr, height, width);
@@ -128,8 +126,7 @@ i32 main(){
             vault_create:
             
             if(!get_path(data.path, "Enter new vault path and name: ", w_prompt.prompt)){
-                u32 ans = yes_no_prompt("File already exists. Do you want to override? (y/n)", w_prompt.prompt);
-                if(!ans)
+                if(!yes_no_prompt("File already exists. Do you want to override? (y/n)", w_prompt.prompt))
                     continue;
             }
             
@@ -137,8 +134,7 @@ i32 main(){
             
             sprintf(vault_prompt, "Do you want to create a new vault at: \"%s\"? (y/n)", data.path);
             
-            u32 ans = yes_no_prompt(vault_prompt, w_prompt.prompt);
-            if(!ans)
+            if(!yes_no_prompt(vault_prompt, w_prompt.prompt))
                 continue;
             
             random_salt(data.master_salt);
@@ -164,8 +160,7 @@ i32 main(){
         }
         else if(first_option == 1){
             if(get_path(data.path, "Enter vault path: ", w_prompt.prompt)){
-                u32 ans = yes_no_prompt("File does not exist. Do you want to create a new one? (y/n)", w_prompt.prompt);
-                if(ans)
+                if(yes_no_prompt("File does not exist. Do you want to create a new one? (y/n)", w_prompt.prompt))
                     goto vault_create;
                 continue;
             }
@@ -189,9 +184,9 @@ i32 main(){
                 get_keys(master_key, &keys);
                 
                 if(!load_data(&data, &keys)){
-                    u32 ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
-                    if(ans)
+                    if(yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt))
                         continue;
+                    // TODO(fungus): fix this
                 }
                 
                 generate_token(master_key, data.key_token);
@@ -202,8 +197,9 @@ i32 main(){
             endwin();
             return 0;
         }
-        break;
     }
+    
+    
     
     clear();
     refresh();
@@ -263,8 +259,7 @@ i32 main(){
                     wrefresh(w_prompt.prompt);
                 }
                 else{
-                    u32 ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
-                    if(ans)
+                    if(yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt))
                         continue;
                 }
                 break;
@@ -299,10 +294,7 @@ i32 main(){
                     byte password[INPUT_LIMIT];
                     u32 password_size;
                     
-                    u32 generate = yes_no_prompt("Do you want to generate a strong password? (y/n)", w_prompt.prompt);
-                    wclear(w_prompt.prompt);
-                    
-                    if(generate){
+                    if(yes_no_prompt("Do you want to generate a strong password? (y/n)", w_prompt.prompt)){
                         password_size = get_uint("Enter password lenght (recommended 16-64): ", w_prompt.prompt) + 1;
                         random_password(password_size, password);
                     }
@@ -321,8 +313,7 @@ i32 main(){
                     memcpy(&options[data.pair_count], extra_options, extra_options_count * sizeof(char*));
                 }
                 else{
-                    u32 ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
-                    if(ans)
+                    if(yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt))
                         continue;
                 }
                 break;
@@ -382,8 +373,7 @@ i32 main(){
                             char remove_prompt[INPUT_LIMIT];
                             sprintf(remove_prompt, "Remove \"%s\"? (y/n)", data.login_pairs[to_remove].login);
                             
-                            u32 ans = yes_no_prompt(remove_prompt, w_prompt.prompt);
-                            if(!ans)
+                            if(!yes_no_prompt(remove_prompt, w_prompt.prompt))
                                 continue;
                             
                             remove_entry(&data, to_remove, &keys);
@@ -403,8 +393,7 @@ i32 main(){
                     }
                 }
                 else{
-                    u32 ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
-                    if(ans)
+                    if(yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt))
                         continue;
                 }
                 break;
@@ -492,8 +481,7 @@ i32 main(){
                     }
                 }
                 else{
-                    u32 ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
-                    if(ans)
+                    if(yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt))
                         continue;
                 }
                 break;
@@ -534,16 +522,13 @@ i32 main(){
                     key_group new_keys;
                     get_keys(new_master_key, &new_keys);
                     
-                    u32 ans = yes_no_prompt("Are you sure you want to change the vault's password? (y/n)", w_prompt.prompt);
-                    
-                    if(ans){
+                    if(yes_no_prompt("Are you sure you want to change the vault's password? (y/n)", w_prompt.prompt)){
                         generate_token(new_master_key, data.key_token);
                         change_vault_password(&data, &old_keys, &new_keys);
                     }
                 }
                 else{
-                    u32 ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
-                    if(ans)
+                    if(yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt))
                         continue;
                 }
                 break;
