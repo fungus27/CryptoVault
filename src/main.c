@@ -100,7 +100,6 @@ i32 main(){
     // TODO(fungus): stop yes or no function from refreshing
     // TODO(fungus): minimize prompt refreshing
     // TODO(fungus): fix warnings
-    // TODO(fungus): (maybe) use do while loops
     
     i32 height, width;
     getmaxyx(stdscr, height, width);
@@ -157,6 +156,7 @@ i32 main(){
             generate_token(master_key, data.key_token);
             
             save_data(&data, &keys);
+            break;
         }
         else if(first_option == 1){
             if(get_path(data.path, "Enter vault path: ", w_prompt.prompt)){
@@ -164,6 +164,8 @@ i32 main(){
                     goto vault_create;
                 continue;
             }
+            
+            wclear(w_prompt.prompt);
             
             load_master_salt(&data);
             
@@ -186,11 +188,11 @@ i32 main(){
                 if(!load_data(&data, &keys)){
                     if(yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt))
                         continue;
-                    // TODO(fungus): fix this
+                    break;
                 }
                 
                 generate_token(master_key, data.key_token);
-                break;
+                goto loop_end;
             }
         }
         else if(first_option == 2){
@@ -198,8 +200,7 @@ i32 main(){
             return 0;
         }
     }
-    
-    
+    loop_end:
     
     clear();
     refresh();
