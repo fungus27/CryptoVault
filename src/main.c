@@ -477,6 +477,9 @@ i32 main(){
                         
                         if(new_login_size - 1)
                             change_entry_login(&data, to_change, &keys, new_login, new_login_size);
+                        else
+                            free(new_login);
+                        
                         if(new_password_size - 1)
                             change_entry_password(&data, to_change, &keys, new_password, new_password_size);
                         

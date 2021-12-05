@@ -247,7 +247,7 @@ void change_entry_password(login_data *data, u32 index, key_group *keys, byte *n
     data->login_pairs[index].password = encrypted_password;
     data->login_pairs[index].enc_password_size = enc_password_size;
     
-    memcpy(data->login_pairs[data->pair_count].password_iv, iv, 16);
+    memcpy(data->login_pairs[index].password_iv, iv, 16);
     
     save_data(data, keys);
 }
