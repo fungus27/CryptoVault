@@ -97,7 +97,12 @@ i32 main(){
     // TODO(fungus): clean up file hierarchy etc.
     // TODO(fungus): use size_t 
     // TODO(fungus): do error checking
-    // TODO(fungus): clear prompt exactly after getting input
+    // TODO(fungus): remove goto's <-
+    // TODO(fungus): stop yes or no function from refreshing
+    // TODO(fungus): minimize prompt refreshing
+    // TODO(fungus): fix warnings
+    // TODO(fungus): (maybe) use do while loops
+    // TODO(fungus): shorten yes or no
     
     i32 height, width;
     getmaxyx(stdscr, height, width);
@@ -112,31 +117,29 @@ i32 main(){
     box(w_prompt.border, 0, 0);
     wrefresh(w_prompt.border);
     
-    first_menu:
-    
-    char *first_options[] = {"Create password bank", "Open password bank", "Exit"};
-    u32 first_option = create_menu(3, 30, height/2-3 , width/2-17, first_options, 3, 0);
-    
-    if(first_option == 2){
-        endwin();
-        return 0;
-    }
-    
-    if(!first_option){
-        vault_create:
-        if(!get_path(data.path, "Enter new vault path and name: ", w_prompt.prompt)){
-            u32 ans = yes_no_prompt("File already exists. Do you want to override? (y/n)", w_prompt.prompt);
-            if(!ans)
-                goto first_menu;
-        }
-        {
+    while(1){
+        wclear(w_prompt.prompt);
+        wrefresh(w_prompt.prompt);
+        
+        char *first_options[] = {"Create password bank", "Open password bank", "Exit"};
+        u32 first_option = create_menu(3, 30, height/2-3 , width/2-17, first_options, 3, 0);
+        
+        if(!first_option){
+            vault_create:
+            
+            if(!get_path(data.path, "Enter new vault path and name: ", w_prompt.prompt)){
+                u32 ans = yes_no_prompt("File already exists. Do you want to override? (y/n)", w_prompt.prompt);
+                if(!ans)
+                    continue;
+            }
+            
             char vault_prompt[INPUT_LIMIT];
             
             sprintf(vault_prompt, "Do you want to create a new vault at: \"%s\"? (y/n)", data.path);
             
             u32 ans = yes_no_prompt(vault_prompt, w_prompt.prompt);
             if(!ans)
-                goto first_menu;
+                continue;
             
             random_salt(data.master_salt);
             
@@ -146,40 +149,8 @@ i32 main(){
                 byte password[INPUT_LIMIT];
                 u32 password_size = get_password(password, "Enter new vault password: ", w_prompt.prompt);
                 
-                derive_master_key(password, password_size, data.master_salt, master_key);
-            }
-            
-            key_group keys;
-            get_keys(master_key, &keys);
-            
-            generate_token(master_key, data.key_token);
-            
-            wclear(w_prompt.prompt);
-            wrefresh(w_prompt.prompt);
-            
-            save_data(&data, &keys);
-        }
-    }
-    else {
-        if(get_path(data.path, "Enter vault path: ", w_prompt.prompt)){
-            u32 ans = yes_no_prompt("File does not exist. Do you want to create a new one? (y/n)", w_prompt.prompt);
-            if(ans)
-                goto vault_create;
-            else
-                goto first_menu;
-        }
-        
-        wclear(w_prompt.prompt);
-        
-        pass:
-        {
-            load_master_salt(&data);
-            
-            byte master_key[32];
-            
-            {
-                byte password[INPUT_LIMIT];
-                u32 password_size = get_password(password, "Enter vault password: ", w_prompt.prompt);
+                wclear(w_prompt.prompt);
+                wrefresh(w_prompt.prompt);
                 
                 derive_master_key(password, password_size, data.master_salt, master_key);
             }
@@ -187,18 +158,51 @@ i32 main(){
             key_group keys;
             get_keys(master_key, &keys);
             
-            wclear(w_prompt.prompt);
-            wrefresh(w_prompt.prompt);
+            generate_token(master_key, data.key_token);
             
-            if(!load_data(&data, &keys)){
-                u32 ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
+            save_data(&data, &keys);
+        }
+        else if(first_option == 1){
+            if(get_path(data.path, "Enter vault path: ", w_prompt.prompt)){
+                u32 ans = yes_no_prompt("File does not exist. Do you want to create a new one? (y/n)", w_prompt.prompt);
                 if(ans)
-                    goto pass;
-                goto first_menu;
+                    goto vault_create;
+                continue;
             }
             
-            generate_token(master_key, data.key_token);
+            load_master_salt(&data);
+            
+            while(1){
+                byte master_key[32];
+                
+                {
+                    byte password[INPUT_LIMIT];
+                    u32 password_size = get_password(password, "Enter vault password: ", w_prompt.prompt);
+                    
+                    wclear(w_prompt.prompt);
+                    wrefresh(w_prompt.prompt);
+                    
+                    derive_master_key(password, password_size, data.master_salt, master_key);
+                }
+                
+                key_group keys;
+                get_keys(master_key, &keys);
+                
+                if(!load_data(&data, &keys)){
+                    u32 ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
+                    if(ans)
+                        continue;
+                }
+                
+                generate_token(master_key, data.key_token);
+                break;
+            }
         }
+        else if(first_option == 2){
+            endwin();
+            return 0;
+        }
+        break;
     }
     
     clear();
@@ -225,14 +229,13 @@ i32 main(){
     
     u32 last_option = 0;
     
-    while(1){
+    while(1){ // Main loop
         last_option = create_menu(data.pair_count+extra_options_count, width/2,
                                   height/2-(data.pair_count+3)/2 , width/2-(width/4),
                                   options, data.pair_count+extra_options_count, last_option);
         
         if(last_option < data.pair_count){ // Show entry
-            pass_show:
-            {
+            while(1){
                 wclear(w_prompt.prompt);
                 
                 byte master_key[32];
@@ -241,12 +244,13 @@ i32 main(){
                     byte password[INPUT_LIMIT];
                     u32 password_size = get_password(password, "Enter vault password: ", w_prompt.prompt);
                     
+                    wclear(w_prompt.prompt);
+                    wrefresh(w_prompt.prompt);
+                    
                     derive_master_key(password, password_size, data.master_salt, master_key);
                 }
                 
                 if(!verify_key(master_key, data.key_token)){
-                    wclear(w_prompt.prompt);
-                    
                     key_group keys;
                     get_keys(master_key, &keys);
                     
@@ -261,13 +265,13 @@ i32 main(){
                 else{
                     u32 ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
                     if(ans)
-                        goto pass_show;
+                        continue;
                 }
+                break;
             }
         }
         else if(last_option == data.pair_count){ // Add entry
-            pass_add:
-            {
+            while(1){
                 wclear(w_prompt.prompt);
                 
                 byte master_key[32];
@@ -276,12 +280,13 @@ i32 main(){
                     byte password[INPUT_LIMIT];
                     u32 password_size = get_password(password, "Enter vault password: ", w_prompt.prompt);
                     
+                    wclear(w_prompt.prompt);
+                    wrefresh(w_prompt.prompt);
+                    
                     derive_master_key(password, password_size, data.master_salt, master_key);
                 }
                 
                 if(!verify_key(master_key, data.key_token)){
-                    wclear(w_prompt.prompt);
-                    
                     key_group keys;
                     get_keys(master_key, &keys);
                     
@@ -305,224 +310,240 @@ i32 main(){
                         password_size = get_password(password, "Enter password: ", w_prompt.prompt);
                     }
                     
-                    add_entry(&data, &keys, login, login_size, password, password_size);
-                    
                     wclear(w_prompt.prompt);
                     wrefresh(w_prompt.prompt);
+                    
+                    add_entry(&data, &keys, login, login_size, password, password_size);
+                    
+                    options = realloc(options, sizeof(char*) * (data.pair_count+extra_options_count));
+                    
+                    options[data.pair_count-1] = data.login_pairs[data.pair_count-1].login; 
+                    memcpy(&options[data.pair_count], extra_options, extra_options_count * sizeof(char*));
                 }
                 else{
                     u32 ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
                     if(ans)
-                        goto pass_add;
+                        continue;
                 }
+                break;
             }
-            
-            options = realloc(options, sizeof(char*) * (data.pair_count+extra_options_count));
-            
-            options[data.pair_count-1] = data.login_pairs[data.pair_count-1].login; 
-            memcpy(&options[data.pair_count], extra_options, extra_options_count * sizeof(char*));
         }
         else if(last_option == data.pair_count+1){ // Remove entry
-            pass_rem_enter:
-            wclear(w_prompt.prompt);
-            
-            byte master_key[32];
-            
-            {
-                byte password[INPUT_LIMIT];
-                u32 password_size = get_password(password, "Enter vault password: ", w_prompt.prompt);
-                
-                derive_master_key(password, password_size, data.master_salt, master_key);
-            }
-            
-            if(!verify_key(master_key, data.key_token)){
-                last_option = 0;
-                
-                key_group keys;
-                get_keys(master_key, &keys);
-                
-                pass_rem:
-                char *rem_options[data.pair_count+1];
-                for (i32 i = 0; i < data.pair_count; i += 1){
-                    rem_options[i] = data.login_pairs[i].login;
-                }
-                
-                rem_options[data.pair_count] = "Exit";
-                
-                wclear(w_prompt.prompt);
-                mvwprintw(w_prompt.prompt, 0, 0, "Choose entry to remove...");
-                wrefresh(w_prompt.prompt);
-                
-                clear();
-                refresh();
-                box(w_prompt.border, 0, 0);
-                wrefresh(w_prompt.border);
-                
-                u32 to_remove = create_menu(data.pair_count+1, width/2, 
-                                            height/2-(data.pair_count+3)/2 , width/2-(width/4),
-                                            rem_options, data.pair_count+1, 0);
-                
-                if(to_remove == data.pair_count){
-                    clear();
-                    refresh();
-                    box(w_prompt.border, 0, 0);
-                    wrefresh(w_prompt.border);
-                    wclear(w_prompt.prompt);
-                    wrefresh(w_prompt.prompt);
-                    continue;
-                }
-                else{
-                    char remove_prompt[INPUT_LIMIT];
-                    sprintf(remove_prompt, "Remove \"%s\"? (y/n)", data.login_pairs[to_remove].login);
-                    
-                    u32 ans = yes_no_prompt(remove_prompt, w_prompt.prompt);
-                    if(!ans)
-                        goto pass_rem;
-                    
-                    remove_entry(&data, to_remove, &keys);
-                    clear();
-                    refresh();
-                    box(w_prompt.border, 0, 0);
-                    wrefresh(w_prompt.border);
-                }
-            }
-            else{
-                u32 ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
-                if(ans)
-                    goto pass_rem_enter;
-            }
-            
-            options = realloc(options, sizeof(char*) * (data.pair_count+extra_options_count));
-            for(i32 i = 0; i < data.pair_count; ++i){
-                options[i] = data.login_pairs[i].login;
-            }
-            
-            memcpy(&options[data.pair_count], extra_options, extra_options_count * sizeof(char*));
-        }
-        else if(last_option == data.pair_count+2){ // Change entry
-            pass_change_enter:
-            wclear(w_prompt.prompt);
-            
-            byte master_key[32];
-            
-            {
-                byte password[INPUT_LIMIT];
-                u32 password_size = get_password(password, "Enter vault password: ", w_prompt.prompt);
-                
-                derive_master_key(password, password_size, data.master_salt, master_key);
-            }
-            
-            if(!verify_key(master_key, data.key_token)){
-                key_group keys;
-                get_keys(master_key, &keys);
-                
-                pass_change:
-                char *change_options[data.pair_count + 1];
-                for (i32 i = 0; i < data.pair_count; i += 1){
-                    change_options[i] = data.login_pairs[i].login;
-                }
-                
-                change_options[data.pair_count] = "Exit";
-                
-                wclear(w_prompt.prompt);
-                mvwprintw(w_prompt.prompt, 0, 0, "Choose entry to change...");
-                wrefresh(w_prompt.prompt);
-                
-                clear();
-                refresh();
-                box(w_prompt.border, 0, 0);
-                wrefresh(w_prompt.border);
-                
-                u32 to_change = create_menu(data.pair_count+1, width/2,
-                                            height/2-(data.pair_count+3)/2 , width/2-(width/4),
-                                            change_options, data.pair_count+1, 0);
-                
-                if(to_change == data.pair_count){
-                    clear();
-                    refresh();
-                    box(w_prompt.border, 0, 0);
-                    wrefresh(w_prompt.border);
-                    wclear(w_prompt.prompt);
-                    wrefresh(w_prompt.prompt);
-                    continue;
-                }
-                else{
-                    wclear(w_prompt.prompt);
-                    
-                    byte *new_login = malloc(sizeof(byte) * INPUT_LIMIT); 
-                    u32 new_login_size = get_unique_login(&data, new_login, "New login (leave blank if not changing): ", w_prompt.prompt);
-                    new_login = realloc(new_login, new_login_size);
-                    
-                    wclear(w_prompt.prompt);
-                    
-                    byte new_password[INPUT_LIMIT];
-                    u32 new_password_size = get_password(new_password, "New password (leave blank if not changing): ", w_prompt.prompt);
-                    
-                    if(new_login_size - 1)
-                        change_entry_login(&data, to_change, &keys, new_login, new_login_size);
-                    if(new_password_size - 1)
-                        change_entry_password(&data, to_change, &keys, new_password, new_password_size);
-                    
-                    options[to_change] = data.login_pairs[to_change].login;
-                    
-                    clear();
-                    refresh();
-                    box(w_prompt.border, 0, 0);
-                    wrefresh(w_prompt.border);
-                }
-            }
-            else{
-                u32 ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
-                if(ans)
-                    goto pass_change_enter;
-            }
-        }
-        else if(last_option == data.pair_count + 3){ // Change vault password
-            v_pass_change_enter:
-            wclear(w_prompt.prompt);
-            
-            byte old_master_key[32];
-            
-            {
-                byte password[INPUT_LIMIT];
-                u32 password_size = get_password(password, "Enter old vault password: ", w_prompt.prompt);
-                
-                derive_master_key(password, password_size, data.master_salt, old_master_key);
-            }
-            
-            if(!verify_key(old_master_key, data.key_token)){
-                key_group old_keys;
-                get_keys(old_master_key, &old_keys);
-                
+            while(1){
                 wclear(w_prompt.prompt);
                 
-                byte new_master_key[32];
+                byte master_key[32];
                 
                 {
                     byte password[INPUT_LIMIT];
-                    u32 password_size = get_password(password, "Enter new vault password: ", w_prompt.prompt);
+                    u32 password_size = get_password(password, "Enter vault password: ", w_prompt.prompt);
                     
-                    derive_master_key(password, password_size, data.master_salt, new_master_key);
+                    wclear(w_prompt.prompt);
+                    wrefresh(w_prompt.prompt);
+                    
+                    derive_master_key(password, password_size, data.master_salt, master_key);
                 }
                 
-                key_group new_keys;
-                get_keys(new_master_key, &new_keys);
-                
-                u32 ans = yes_no_prompt("Are you sure you want to change the vault's password? (y/n)", w_prompt.prompt);
-                
-                if(ans){
-                    generate_token(new_master_key, data.key_token);
-                    change_vault_password(&data, &old_keys, &new_keys);
+                if(!verify_key(master_key, data.key_token)){
+                    last_option = 0;
+                    
+                    key_group keys;
+                    get_keys(master_key, &keys);
+                    
+                    pass_rem:
+                    char *rem_options[data.pair_count+1];
+                    for (i32 i = 0; i < data.pair_count; i += 1){
+                        rem_options[i] = data.login_pairs[i].login;
+                    }
+                    
+                    rem_options[data.pair_count] = "Exit";
+                    
+                    mvwprintw(w_prompt.prompt, 0, 0, "Choose entry to remove...");
+                    wrefresh(w_prompt.prompt);
+                    
+                    clear();
+                    refresh();
+                    box(w_prompt.border, 0, 0);
+                    wrefresh(w_prompt.border);
+                    
+                    u32 to_remove = create_menu(data.pair_count+1, width/2, 
+                                                height/2-(data.pair_count+3)/2 , width/2-(width/4),
+                                                rem_options, data.pair_count+1, 0);
+                    
+                    if(to_remove == data.pair_count){
+                        clear();
+                        refresh();
+                        box(w_prompt.border, 0, 0);
+                        wrefresh(w_prompt.border);
+                        wclear(w_prompt.prompt);
+                        wrefresh(w_prompt.prompt);
+                        break;
+                    }
+                    else{
+                        char remove_prompt[INPUT_LIMIT];
+                        sprintf(remove_prompt, "Remove \"%s\"? (y/n)", data.login_pairs[to_remove].login);
+                        
+                        u32 ans = yes_no_prompt(remove_prompt, w_prompt.prompt);
+                        if(!ans)
+                            goto pass_rem;
+                        
+                        remove_entry(&data, to_remove, &keys);
+                        clear();
+                        refresh();
+                        box(w_prompt.border, 0, 0);
+                        wrefresh(w_prompt.border);
+                        
+                        options = realloc(options, sizeof(char*) * (data.pair_count+extra_options_count));
+                        for(i32 i = 0; i < data.pair_count; ++i){
+                            options[i] = data.login_pairs[i].login;
+                        }
+                        
+                        memcpy(&options[data.pair_count], extra_options, extra_options_count * sizeof(char*));
+                    }
                 }
                 else{
-                    wclear(w_prompt.prompt);
-                    continue;
+                    u32 ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
+                    if(ans)
+                        continue;
                 }
+                break;
             }
-            else{
-                u32 ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
-                if(ans)
-                    goto v_pass_change_enter;
+        }
+        else if(last_option == data.pair_count+2){ // Change entry
+            while(1){
+                wclear(w_prompt.prompt);
+                
+                byte master_key[32];
+                
+                {
+                    byte password[INPUT_LIMIT];
+                    u32 password_size = get_password(password, "Enter vault password: ", w_prompt.prompt);
+                    
+                    wclear(w_prompt.prompt);
+                    wrefresh(w_prompt.prompt);
+                    
+                    derive_master_key(password, password_size, data.master_salt, master_key);
+                }
+                
+                if(!verify_key(master_key, data.key_token)){
+                    key_group keys;
+                    get_keys(master_key, &keys);
+                    
+                    pass_change:
+                    char *change_options[data.pair_count + 1];
+                    for (i32 i = 0; i < data.pair_count; i += 1){
+                        change_options[i] = data.login_pairs[i].login;
+                    }
+                    
+                    change_options[data.pair_count] = "Exit";
+                    
+                    mvwprintw(w_prompt.prompt, 0, 0, "Choose entry to change...");
+                    wrefresh(w_prompt.prompt);
+                    
+                    clear();
+                    refresh();
+                    box(w_prompt.border, 0, 0);
+                    wrefresh(w_prompt.border);
+                    
+                    u32 to_change = create_menu(data.pair_count+1, width/2,
+                                                height/2-(data.pair_count+3)/2 , width/2-(width/4),
+                                                change_options, data.pair_count+1, 0);
+                    
+                    if(to_change == data.pair_count){
+                        clear();
+                        refresh();
+                        box(w_prompt.border, 0, 0);
+                        wrefresh(w_prompt.border);
+                        wclear(w_prompt.prompt);
+                        wrefresh(w_prompt.prompt);
+                        break;
+                    }
+                    else{
+                        wclear(w_prompt.prompt);
+                        
+                        byte *new_login = malloc(sizeof(byte) * INPUT_LIMIT); 
+                        u32 new_login_size = get_unique_login(&data, new_login, "New login (leave blank if not changing): ", w_prompt.prompt);
+                        
+                        wclear(w_prompt.prompt);
+                        wrefresh(w_prompt.prompt);
+                        
+                        new_login = realloc(new_login, new_login_size);
+                        
+                        byte new_password[INPUT_LIMIT];
+                        u32 new_password_size = get_password(new_password, "New password (leave blank if not changing): ", w_prompt.prompt);
+                        
+                        wclear(w_prompt.prompt);
+                        wrefresh(w_prompt.prompt);
+                        
+                        if(new_login_size - 1)
+                            change_entry_login(&data, to_change, &keys, new_login, new_login_size);
+                        if(new_password_size - 1)
+                            change_entry_password(&data, to_change, &keys, new_password, new_password_size);
+                        
+                        options[to_change] = data.login_pairs[to_change].login;
+                        
+                        clear();
+                        refresh();
+                        box(w_prompt.border, 0, 0);
+                        wrefresh(w_prompt.border);
+                    }
+                }
+                else{
+                    u32 ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
+                    if(ans)
+                        continue;
+                }
+                break;
+            }
+        }
+        else if(last_option == data.pair_count + 3){ // Change vault password
+            while(1){
+                wclear(w_prompt.prompt);
+                
+                byte old_master_key[32];
+                
+                {
+                    byte password[INPUT_LIMIT];
+                    u32 password_size = get_password(password, "Enter old vault password: ", w_prompt.prompt);
+                    
+                    wclear(w_prompt.prompt);
+                    wrefresh(w_prompt.prompt);
+                    
+                    derive_master_key(password, password_size, data.master_salt, old_master_key);
+                }
+                
+                if(!verify_key(old_master_key, data.key_token)){
+                    key_group old_keys;
+                    get_keys(old_master_key, &old_keys);
+                    
+                    byte new_master_key[32];
+                    
+                    {
+                        byte password[INPUT_LIMIT];
+                        u32 password_size = get_password(password, "Enter new vault password: ", w_prompt.prompt);
+                        
+                        wclear(w_prompt.prompt);
+                        wrefresh(w_prompt.prompt);
+                        
+                        derive_master_key(password, password_size, data.master_salt, new_master_key);
+                    }
+                    
+                    key_group new_keys;
+                    get_keys(new_master_key, &new_keys);
+                    
+                    u32 ans = yes_no_prompt("Are you sure you want to change the vault's password? (y/n)", w_prompt.prompt);
+                    
+                    if(ans){
+                        generate_token(new_master_key, data.key_token);
+                        change_vault_password(&data, &old_keys, &new_keys);
+                    }
+                }
+                else{
+                    u32 ans = yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt);
+                    if(ans)
+                        continue;
+                }
+                break;
             }
         }
         else{ // Exit
