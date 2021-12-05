@@ -350,7 +350,6 @@ i32 main(){
                     key_group keys;
                     get_keys(master_key, &keys);
                     
-                    pass_rem:
                     char *rem_options[data.pair_count+1];
                     for (i32 i = 0; i < data.pair_count; i += 1){
                         rem_options[i] = data.login_pairs[i].login;
@@ -358,47 +357,49 @@ i32 main(){
                     
                     rem_options[data.pair_count] = "Exit";
                     
-                    mvwprintw(w_prompt.prompt, 0, 0, "Choose entry to remove...");
-                    wrefresh(w_prompt.prompt);
-                    
-                    clear();
-                    refresh();
-                    box(w_prompt.border, 0, 0);
-                    wrefresh(w_prompt.border);
-                    
-                    u32 to_remove = create_menu(data.pair_count+1, width/2, 
-                                                height/2-(data.pair_count+3)/2 , width/2-(width/4),
-                                                rem_options, data.pair_count+1, 0);
-                    
-                    if(to_remove == data.pair_count){
-                        clear();
-                        refresh();
-                        box(w_prompt.border, 0, 0);
-                        wrefresh(w_prompt.border);
-                        wclear(w_prompt.prompt);
+                    while(1){
+                        mvwprintw(w_prompt.prompt, 0, 0, "Choose entry to remove...");
                         wrefresh(w_prompt.prompt);
-                        break;
-                    }
-                    else{
-                        char remove_prompt[INPUT_LIMIT];
-                        sprintf(remove_prompt, "Remove \"%s\"? (y/n)", data.login_pairs[to_remove].login);
                         
-                        u32 ans = yes_no_prompt(remove_prompt, w_prompt.prompt);
-                        if(!ans)
-                            goto pass_rem;
-                        
-                        remove_entry(&data, to_remove, &keys);
                         clear();
                         refresh();
                         box(w_prompt.border, 0, 0);
                         wrefresh(w_prompt.border);
                         
-                        options = realloc(options, sizeof(char*) * (data.pair_count+extra_options_count));
-                        for(i32 i = 0; i < data.pair_count; ++i){
-                            options[i] = data.login_pairs[i].login;
-                        }
+                        u32 to_remove = create_menu(data.pair_count+1, width/2, 
+                                                    height/2-(data.pair_count+3)/2 , width/2-(width/4),
+                                                    rem_options, data.pair_count+1, 0);
                         
-                        memcpy(&options[data.pair_count], extra_options, extra_options_count * sizeof(char*));
+                        if(to_remove == data.pair_count){
+                            clear();
+                            refresh();
+                            box(w_prompt.border, 0, 0);
+                            wrefresh(w_prompt.border);
+                            wclear(w_prompt.prompt);
+                            wrefresh(w_prompt.prompt);
+                        }
+                        else{
+                            char remove_prompt[INPUT_LIMIT];
+                            sprintf(remove_prompt, "Remove \"%s\"? (y/n)", data.login_pairs[to_remove].login);
+                            
+                            u32 ans = yes_no_prompt(remove_prompt, w_prompt.prompt);
+                            if(!ans)
+                                continue;
+                            
+                            remove_entry(&data, to_remove, &keys);
+                            clear();
+                            refresh();
+                            box(w_prompt.border, 0, 0);
+                            wrefresh(w_prompt.border);
+                            
+                            options = realloc(options, sizeof(char*) * (data.pair_count+extra_options_count));
+                            for(i32 i = 0; i < data.pair_count; ++i){
+                                options[i] = data.login_pairs[i].login;
+                            }
+                            
+                            memcpy(&options[data.pair_count], extra_options, extra_options_count * sizeof(char*));
+                        }
+                        break;
                     }
                 }
                 else{
@@ -429,7 +430,6 @@ i32 main(){
                     key_group keys;
                     get_keys(master_key, &keys);
                     
-                    pass_change:
                     char *change_options[data.pair_count + 1];
                     for (i32 i = 0; i < data.pair_count; i += 1){
                         change_options[i] = data.login_pairs[i].login;
