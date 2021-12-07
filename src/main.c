@@ -98,7 +98,7 @@ i32 main(){
     // TODO(fungus): use size_t 
     // TODO(fungus): do error checking
     // TODO(fungus): stop yes or no function from refreshing
-    // TODO(fungus): minimize prompt refreshing
+    // TODO(fungus): minimize prompt refreshing <-
     // TODO(fungus): fix warnings
     
     i32 height, width;
@@ -116,7 +116,6 @@ i32 main(){
     
     while(1){
         wclear(w_prompt.prompt);
-        wrefresh(w_prompt.prompt);
         
         char *first_options[] = {"Create password bank", "Open password bank", "Exit"};
         u32 first_option = create_menu(3, 30, height/2-3 , width/2-17, first_options, 3, 0);
@@ -303,9 +302,6 @@ i32 main(){
                         password_size = get_password(password, "Enter password: ", w_prompt.prompt);
                     }
                     
-                    wclear(w_prompt.prompt);
-                    wrefresh(w_prompt.prompt);
-                    
                     add_entry(&data, &keys, login, login_size, password, password_size);
                     
                     options = realloc(options, sizeof(char*) * (data.pair_count+extra_options_count));
@@ -349,28 +345,20 @@ i32 main(){
                     
                     rem_options[data.pair_count] = "Exit";
                     
+                    clear();
+                    refresh();
+                    box(w_prompt.border, 0, 0);
+                    wrefresh(w_prompt.border);
+                    
                     while(1){
                         mvwprintw(w_prompt.prompt, 0, 0, "Choose entry to remove...");
                         wrefresh(w_prompt.prompt);
-                        
-                        clear();
-                        refresh();
-                        box(w_prompt.border, 0, 0);
-                        wrefresh(w_prompt.border);
                         
                         u32 to_remove = create_menu(data.pair_count+1, width/2, 
                                                     height/2-(data.pair_count+3)/2 , width/2-(width/4),
                                                     rem_options, data.pair_count+1, 0);
                         
-                        if(to_remove == data.pair_count){
-                            clear();
-                            refresh();
-                            box(w_prompt.border, 0, 0);
-                            wrefresh(w_prompt.border);
-                            wclear(w_prompt.prompt);
-                            wrefresh(w_prompt.prompt);
-                        }
-                        else{
+                        if(to_remove != data.pair_count){
                             char remove_prompt[INPUT_LIMIT];
                             sprintf(remove_prompt, "Remove \"%s\"? (y/n)", data.login_pairs[to_remove].login);
                             
@@ -378,10 +366,8 @@ i32 main(){
                                 continue;
                             
                             remove_entry(&data, to_remove, &keys);
-                            clear();
-                            refresh();
-                            box(w_prompt.border, 0, 0);
-                            wrefresh(w_prompt.border);
+                            
+                            
                             
                             options = realloc(options, sizeof(char*) * (data.pair_count+extra_options_count));
                             for(i32 i = 0; i < data.pair_count; ++i){
@@ -390,6 +376,12 @@ i32 main(){
                             
                             memcpy(&options[data.pair_count], extra_options, extra_options_count * sizeof(char*));
                         }
+                        
+                        clear();
+                        refresh();
+                        box(w_prompt.border, 0, 0);
+                        wrefresh(w_prompt.border);
+                        
                         break;
                     }
                 }
@@ -427,43 +419,30 @@ i32 main(){
                     
                     change_options[data.pair_count] = "Exit";
                     
-                    mvwprintw(w_prompt.prompt, 0, 0, "Choose entry to change...");
-                    wrefresh(w_prompt.prompt);
-                    
                     clear();
                     refresh();
                     box(w_prompt.border, 0, 0);
                     wrefresh(w_prompt.border);
                     
+                    mvwprintw(w_prompt.prompt, 0, 0, "Choose entry to change...");
+                    wrefresh(w_prompt.prompt);
+                    
                     u32 to_change = create_menu(data.pair_count+1, width/2,
-                                                height/2-(data.pair_count+3)/2 , width/2-(width/4),
+                                                height/2-(data.pair_count+3)/2, width/2-(width/4),
                                                 change_options, data.pair_count+1, 0);
                     
                     if(to_change == data.pair_count){
-                        clear();
-                        refresh();
-                        box(w_prompt.border, 0, 0);
-                        wrefresh(w_prompt.border);
-                        wclear(w_prompt.prompt);
-                        wrefresh(w_prompt.prompt);
-                        break;
-                    }
-                    else{
                         wclear(w_prompt.prompt);
                         
                         byte *new_login = malloc(sizeof(byte) * INPUT_LIMIT); 
                         u32 new_login_size = get_unique_login(&data, new_login, "New login (leave blank if not changing): ", w_prompt.prompt);
                         
                         wclear(w_prompt.prompt);
-                        wrefresh(w_prompt.prompt);
                         
                         new_login = realloc(new_login, new_login_size);
                         
                         byte new_password[INPUT_LIMIT];
                         u32 new_password_size = get_password(new_password, "New password (leave blank if not changing): ", w_prompt.prompt);
-                        
-                        wclear(w_prompt.prompt);
-                        wrefresh(w_prompt.prompt);
                         
                         if(new_login_size - 1)
                             change_entry_login(&data, to_change, &keys, new_login, new_login_size);
@@ -474,17 +453,18 @@ i32 main(){
                             change_entry_password(&data, to_change, &keys, new_password, new_password_size);
                         
                         options[to_change] = data.login_pairs[to_change].login;
-                        
-                        clear();
-                        refresh();
-                        box(w_prompt.border, 0, 0);
-                        wrefresh(w_prompt.border);
                     }
                 }
                 else{
                     if(yes_no_prompt("Invalid password. Do you want to try again? (y/n)", w_prompt.prompt))
                         continue;
                 }
+                
+                clear();
+                refresh();
+                box(w_prompt.border, 0, 0);
+                wrefresh(w_prompt.border);
+                
                 break;
             }
         }
