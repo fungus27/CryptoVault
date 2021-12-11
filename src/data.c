@@ -38,7 +38,7 @@ i32 load_data(login_data *data, key_group *keys){
     fp = fopen(data->path, "rb");
     
     fseek(fp, 0, SEEK_END);
-    u32 ciphertext_size = ftell(fp) - 64; /* master_salt + iv + mac */
+    u64 ciphertext_size = ftell(fp) - 64; /* master_salt + iv + mac */
     rewind(fp);
     
     fread(data->master_salt, 16, 1, fp);
@@ -99,7 +99,7 @@ i32 load_data(login_data *data, key_group *keys){
         current_pointer += login_size;
     }
     
-    for (i32 i = 0; i < data->pair_count; i++)
+    for (u32 i = 0; i < data->pair_count; i++)
     {
         memcpy(data->login_pairs[i].password, current_pointer, data->login_pairs[i].enc_password_size);
         current_pointer += data->login_pairs[i].enc_password_size;
@@ -121,7 +121,7 @@ void save_data(login_data *data, key_group *keys){
     
     // TODO(fungus): add metadata
     // time (4 bytes) number of iv generations (4 bytes) something else (8 bytes)
-    u32 cleartext_size = sizeof(data->pair_count) + 4 + 4 + 8;
+    u64 cleartext_size = sizeof(data->pair_count) + 4 + 4 + 8;
     for (i32 i = 0; i < data->pair_count; i++)
     {
         cleartext_size += sizeof(data->login_pairs[i].login_size) + sizeof(data->login_pairs[i].enc_password_size) + data->login_pairs[i].login_size + data->login_pairs[i].enc_password_size + 16;

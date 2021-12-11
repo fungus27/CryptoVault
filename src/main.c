@@ -93,12 +93,10 @@ i32 main(){
         use_default_colors();
     }
     
-    // TODO(fungus): make better inputs, make a 30s clipboard reset, add file encryption, test, add comments, clean up code, do a complete menu look overhaul, etc.
+    // TODO(fungus): make better inputs, make a 30s clipboard reset, add file encryption, test, add comments, clean up code, do a complete menu look overhaul, make simple command version etc.
     // TODO(fungus): clean up file hierarchy etc.
-    // TODO(fungus): use size_t 
+    // TODO(fungus): use u64 <- 
     // TODO(fungus): do error checking
-    // TODO(fungus): stop yes or no function from refreshing
-    // TODO(fungus): minimize prompt refreshing <-
     // TODO(fungus): fix warnings
     
     i32 height, width;
