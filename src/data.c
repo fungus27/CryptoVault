@@ -26,6 +26,10 @@ void destroy_data(login_data *data){
 void load_master_salt(login_data *data){
     FILE *fp;
     fp = fopen(data->path, "rb");
+    if(!fp){
+        fprintf(stderr, "(load_master_salt): Failed to open file");
+        abort();
+    }
     
     fread(data->master_salt, 16, 1, fp);
     
@@ -36,6 +40,10 @@ void load_master_salt(login_data *data){
 i32 load_data(login_data *data, key_group *keys){
     FILE *fp;
     fp = fopen(data->path, "rb");
+    if(!fp){
+        fprintf(stderr, "(load_data): Failed to open file");
+        abort();
+    }
     
     fseek(fp, 0, SEEK_END);
     u64 ciphertext_size = ftell(fp) - 64; /* master_salt + iv + mac */
@@ -116,8 +124,12 @@ i32 load_data(login_data *data, key_group *keys){
 }
 
 void save_data(login_data *data, key_group *keys){
-    FILE *file_ptr;
-    file_ptr = fopen(data->path, "wb");
+    FILE *fp;
+    fp = fopen(data->path, "wb");
+    if(!fp){
+        fprintf(stderr, "(save_data): Failed to open file");
+        abort();
+    }
     
     // TODO(fungus): add metadata
     // time (4 bytes) number of iv generations (4 bytes) something else (8 bytes)
@@ -175,13 +187,13 @@ void save_data(login_data *data, key_group *keys){
     EVP_PKEY_free(mac_pkey);
     free(auth_message);
     
-    fwrite(data->master_salt, 16, 1, file_ptr);
-    fwrite(ciphertext, ciphertext_size, 1, file_ptr);
-    fwrite(iv, 16, 1, file_ptr);
-    fwrite(mac, 32, 1 , file_ptr);
+    fwrite(data->master_salt, 16, 1, fp);
+    fwrite(ciphertext, ciphertext_size, 1, fp);
+    fwrite(iv, 16, 1, fp);
+    fwrite(mac, 32, 1 , fp);
     
     free(ciphertext);
-    fclose(file_ptr);
+    fclose(fp);
 }
 
 void add_entry(login_data *data, key_group *keys, byte *login, u32 login_size, byte *password, u32 password_size){

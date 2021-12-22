@@ -95,8 +95,6 @@ i32 main(){
     
     // TODO(fungus): make better inputs, make a 30s clipboard reset, add file encryption, test, add comments, clean up code, do a complete menu look overhaul, make simple command version etc.
     // TODO(fungus): clean up file hierarchy etc.
-    // TODO(fungus): use u64 <- 
-    // TODO(fungus): do error checking
     // TODO(fungus): fix warnings
     
     i32 height, width;
