@@ -93,9 +93,8 @@ i32 main(){
         use_default_colors();
     }
     
-    // TODO(fungus): make better inputs, make a 30s clipboard reset, add file encryption, test, add comments, clean up code, do a complete menu look overhaul, make simple command version etc.
+    // TODO(fungus): make better inputs, make a 30s clipboard reset, add file encryption, test, clean up makefile, add comments, do a complete menu look overhaul, make simple command version etc.
     // TODO(fungus): clean up file hierarchy etc.
-    // TODO(fungus): fix warnings
     
     i32 height, width;
     getmaxyx(stdscr, height, width);
@@ -214,7 +213,7 @@ i32 main(){
     
     char **options = malloc(sizeof(char*) * (data.pair_count+extra_options_count));
     for(i32 i = 0; i < data.pair_count; ++i){
-        options[i] = data.login_pairs[i].login;
+        options[i] = (char*)data.login_pairs[i].login;
     }
     
     memcpy(&options[data.pair_count], extra_options, extra_options_count * sizeof(char*));
@@ -249,7 +248,7 @@ i32 main(){
                     byte password[data.login_pairs[last_option].enc_password_size];
                     decrypt_entry(&data, last_option, &keys, password);
                     
-                    copy_to_clipboard(password);
+                    copy_to_clipboard((char*)password);
                     
                     mvwprintw(w_prompt.prompt, 0 ,0, "Password copied to clipboard.");
                     wrefresh(w_prompt.prompt);
@@ -302,7 +301,7 @@ i32 main(){
                     
                     options = realloc(options, sizeof(char*) * (data.pair_count+extra_options_count));
                     
-                    options[data.pair_count-1] = data.login_pairs[data.pair_count-1].login; 
+                    options[data.pair_count-1] = (char*)data.login_pairs[data.pair_count-1].login; 
                     memcpy(&options[data.pair_count], extra_options, extra_options_count * sizeof(char*));
                 }
                 else{
@@ -336,7 +335,7 @@ i32 main(){
                     
                     char *rem_options[data.pair_count+1];
                     for (i32 i = 0; i < data.pair_count; i += 1){
-                        rem_options[i] = data.login_pairs[i].login;
+                        rem_options[i] = (char*)data.login_pairs[i].login;
                     }
                     
                     rem_options[data.pair_count] = "Exit";
@@ -363,11 +362,9 @@ i32 main(){
                             
                             remove_entry(&data, to_remove, &keys);
                             
-                            
-                            
                             options = realloc(options, sizeof(char*) * (data.pair_count+extra_options_count));
                             for(i32 i = 0; i < data.pair_count; ++i){
-                                options[i] = data.login_pairs[i].login;
+                                options[i] = (char*)data.login_pairs[i].login;
                             }
                             
                             memcpy(&options[data.pair_count], extra_options, extra_options_count * sizeof(char*));
@@ -410,7 +407,7 @@ i32 main(){
                     
                     char *change_options[data.pair_count + 1];
                     for (i32 i = 0; i < data.pair_count; i += 1){
-                        change_options[i] = data.login_pairs[i].login;
+                        change_options[i] = (char*)data.login_pairs[i].login;
                     }
                     
                     change_options[data.pair_count] = "Exit";
@@ -448,7 +445,7 @@ i32 main(){
                         if(new_password_size - 1)
                             change_entry_password(&data, to_change, &keys, new_password, new_password_size);
                         
-                        options[to_change] = data.login_pairs[to_change].login;
+                        options[to_change] = (char*)data.login_pairs[to_change].login;
                     }
                 }
                 else{
